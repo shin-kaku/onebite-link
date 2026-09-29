@@ -1,24 +1,28 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { folders } from "@/data/bookmarks";
 
 type CustomFolder = { id: string; name: string };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean };
 type FolderToEdit = FolderToDelete;
 type BookmarkToDelete = { key: string; title: string; isSaved: boolean };
-type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[] };
+export type BookmarkOverride = { title: string; description: string; folderId: string };
+type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean };
+type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[]; bookmarkOverrides: Readonly<Record<string, BookmarkOverride>> };
 type FolderContextValue = FolderState & {
   openFolderModal: () => void;
   requestDeleteFolder: (folder: FolderToDelete) => void;
   requestEditFolder: (folder: FolderToEdit) => void;
   addBookmark: (bookmark: Omit<SavedBookmark, "id">) => void;
   requestDeleteBookmark: (bookmark: BookmarkToDelete) => void;
+  requestEditBookmark: (bookmark: BookmarkToEdit) => void;
 };
 
 const STORAGE_KEY = "onebite-custom-folders";
 const CHANGE_EVENT = "onebite-folders-changed";
-const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [], deletedBookmarkKeys: [] };
+const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [], deletedBookmarkKeys: [], bookmarkOverrides: {} };
 const FolderContext = createContext<FolderContextValue | null>(null);
 
 let cachedRaw: string | null = null;
@@ -32,13 +36,14 @@ function getFoldersSnapshot() {
   try {
     const parsed = raw ? JSON.parse(raw) : EMPTY_STATE;
     cachedState = Array.isArray(parsed)
-      ? { customFolders: parsed, deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [], deletedBookmarkKeys: [] }
+      ? { customFolders: parsed, deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [], deletedBookmarkKeys: [], bookmarkOverrides: {} }
       : {
           customFolders: Array.isArray(parsed.customFolders) ? parsed.customFolders : [],
           deletedFolderIds: Array.isArray(parsed.deletedFolderIds) ? parsed.deletedFolderIds : [],
           renamedFolders: parsed.renamedFolders && typeof parsed.renamedFolders === "object" ? parsed.renamedFolders : {},
           savedBookmarks: Array.isArray(parsed.savedBookmarks) ? parsed.savedBookmarks : [],
           deletedBookmarkKeys: Array.isArray(parsed.deletedBookmarkKeys) ? parsed.deletedBookmarkKeys : [],
+          bookmarkOverrides: parsed.bookmarkOverrides && typeof parsed.bookmarkOverrides === "object" ? parsed.bookmarkOverrides : {},
         };
   } catch {
     cachedState = EMPTY_STATE;
@@ -66,22 +71,24 @@ export function FolderProvider({ children }: { children: ReactNode }) {
   const [deleteTarget, setDeleteTarget] = useState<FolderToDelete | null>(null);
   const [editTarget, setEditTarget] = useState<FolderToEdit | null>(null);
   const [bookmarkDeleteTarget, setBookmarkDeleteTarget] = useState<BookmarkToDelete | null>(null);
+  const [bookmarkEditTarget, setBookmarkEditTarget] = useState<BookmarkToEdit | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isCreateOpen && !deleteTarget && !editTarget && !bookmarkDeleteTarget) return;
-    if (isCreateOpen || editTarget) inputRef.current?.focus();
+    if (!isCreateOpen && !deleteTarget && !editTarget && !bookmarkDeleteTarget && !bookmarkEditTarget) return;
+    if (isCreateOpen || editTarget || bookmarkEditTarget) inputRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsCreateOpen(false);
         setDeleteTarget(null);
         setEditTarget(null);
         setBookmarkDeleteTarget(null);
+        setBookmarkEditTarget(null);
       }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isCreateOpen, deleteTarget, editTarget, bookmarkDeleteTarget]);
+  }, [isCreateOpen, deleteTarget, editTarget, bookmarkDeleteTarget, bookmarkEditTarget]);
 
   function addFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -127,13 +134,30 @@ export function FolderProvider({ children }: { children: ReactNode }) {
     setBookmarkDeleteTarget(null);
   }
 
+  function editBookmark(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!bookmarkEditTarget) return;
+    const form = new FormData(event.currentTarget);
+    const updated: BookmarkOverride = {
+      folderId: String(form.get("folder")),
+      title: String(form.get("title") ?? "").trim(),
+      description: String(form.get("description") ?? "").trim(),
+    };
+    if (!updated.folderId || !updated.title || !updated.description) return;
+    saveState(bookmarkEditTarget.isSaved
+      ? { ...folderState, savedBookmarks: folderState.savedBookmarks.map((bookmark) => bookmark.id === bookmarkEditTarget.key ? { ...bookmark, ...updated } : bookmark) }
+      : { ...folderState, bookmarkOverrides: { ...folderState.bookmarkOverrides, [bookmarkEditTarget.key]: updated } });
+    setBookmarkEditTarget(null);
+  }
+
   const closeCreateModal = () => setIsCreateOpen(false);
   const closeDeleteModal = () => setDeleteTarget(null);
   const closeEditModal = () => setEditTarget(null);
   const closeBookmarkDeleteModal = () => setBookmarkDeleteTarget(null);
+  const closeBookmarkEditModal = () => setBookmarkEditTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget }}>
+    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -200,6 +224,22 @@ export function FolderProvider({ children }: { children: ReactNode }) {
               <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeBookmarkDeleteModal}>취소</button>
               <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white" type="button" onClick={deleteBookmark}>삭제</button>
             </div>
+          </section>
+        </div>
+      )}
+      {bookmarkEditTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeBookmarkEditModal(); }}>
+          <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6" role="dialog" aria-modal="true" aria-labelledby="edit-bookmark-title">
+            <div className="mb-6">
+              <p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--accent)]">링크 수정</p>
+              <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="edit-bookmark-title">링크 정보 수정하기</h2>
+            </div>
+            <form className="grid gap-4" onSubmit={editBookmark}>
+              <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-folder">폴더</label><select className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base" id="edit-bookmark-folder" name="folder" defaultValue={bookmarkEditTarget.folderId} required>{folders.filter((folder) => !folderState.deletedFolderIds.includes(folder.id)).map((folder) => <option key={folder.id} value={folder.id}>{folderState.renamedFolders[folder.id] ?? folder.name}</option>)}{folderState.customFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></div>
+              <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-name">제목</label><input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base" id="edit-bookmark-name" name="title" defaultValue={bookmarkEditTarget.title} maxLength={120} required /></div>
+              <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-description">설명</label><textarea className="min-h-28 w-full resize-y rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base leading-relaxed outline-none focus:border-[var(--accent)]" id="edit-bookmark-description" name="description" defaultValue={bookmarkEditTarget.description} maxLength={300} required /></div>
+              <div className="mt-2 flex justify-end gap-2"><button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeBookmarkEditModal}>취소</button><button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit">저장</button></div>
+            </form>
           </section>
         </div>
       )}
