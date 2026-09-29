@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowIcon } from "./icons";
+import { ArrowIcon, TrashIcon } from "./icons";
 import { bookmarks, folders } from "@/data/bookmarks";
 import { useFolders, type SavedBookmark } from "./FolderProvider";
 
@@ -12,7 +12,7 @@ function isSavedBookmark(bookmark: BookmarkItem): bookmark is SavedBookmark {
 }
 
 function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
-  const { customFolders, renamedFolders } = useFolders();
+  const { customFolders, renamedFolders, requestDeleteBookmark } = useFolders();
   const defaultFolder = folders.find((item) => item.id === bookmark.folderId);
   const customFolder = customFolders.find((item) => item.id === bookmark.folderId);
   const folderName = customFolder?.name ?? (defaultFolder ? renamedFolders[defaultFolder.id] ?? defaultFolder.name : "폴더 없음");
@@ -22,7 +22,8 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
   const iconClass = `site-${bookmark.title.toLowerCase().replace(".", "").replace("요즘it", "yozmit")}`;
 
   return (
-    <article className="card-hover flex min-h-52 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <article className="bookmark-card card-hover relative flex min-h-52 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+      <button className="bookmark-delete-button absolute top-3 right-3 z-10 grid size-8 cursor-pointer place-items-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-sub)]" type="button" aria-label={`${bookmark.title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key: isSaved ? bookmark.id : bookmark.url, title: bookmark.title, isSaved })}><TrashIcon className="size-4"/></button>
       {isSaved && bookmark.thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="h-44 w-full border-b border-[var(--border)] object-cover" src={bookmark.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" />
@@ -52,9 +53,10 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
 }
 
 export function BookmarkGrid({ items = bookmarks, folderId }: { items?: readonly DefaultBookmark[]; folderId?: string }) {
-  const { savedBookmarks } = useFolders();
+  const { savedBookmarks, deletedBookmarkKeys } = useFolders();
   const addedItems = folderId ? savedBookmarks.filter((bookmark) => bookmark.folderId === folderId) : savedBookmarks;
-  const allItems: BookmarkItem[] = [...items, ...addedItems];
+  const visibleItems = items.filter((bookmark) => !deletedBookmarkKeys.includes(bookmark.url));
+  const allItems: BookmarkItem[] = [...visibleItems, ...addedItems];
 
   return <section className="grid grid-cols-1 gap-3 sm:grid-cols-2" id="all" aria-label="저장한 링크">{allItems.map((bookmark) => <BookmarkCard key={isSavedBookmark(bookmark) ? bookmark.id : bookmark.url} bookmark={bookmark}/>)}</section>;
 }

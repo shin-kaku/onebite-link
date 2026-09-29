@@ -26,7 +26,7 @@ body {
 a { color: inherit; text-decoration: none; }
 button, input, select { font: inherit; }
 
-.nav-hover, .card-hover, .secondary-hover, .primary-hover, .external-hover, .delete-hover, .folder-action-button {
+.nav-hover, .card-hover, .secondary-hover, .primary-hover, .external-hover, .delete-hover, .folder-action-button, .bookmark-delete-button {
   transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
 }
 .nav-hover:not(.nav-active):hover, .secondary-hover:hover { background: var(--hover-bg); }
@@ -49,6 +49,10 @@ button, input, select { font: inherit; }
 .folder-row:focus-within .folder-count { opacity: 0; }
 .folder-action-button:hover { background: #e8e8e5; color: var(--text); }
 .folder-action-button:last-child:hover { background: var(--error-bg); color: var(--error); }
+.bookmark-delete-button { opacity: 0; pointer-events: none; }
+.bookmark-card:hover .bookmark-delete-button,
+.bookmark-card:focus-within .bookmark-delete-button { opacity: 1; pointer-events: auto; }
+.bookmark-delete-button:hover { border-color: var(--error); background: var(--error-bg); color: var(--error); }
 
 .site-react { background: #087ea4; }
 .site-nextjs { background: #262626; }
@@ -71,4 +75,5 @@ input:focus, select:focus {
   .mobile-scroll { overflow-x: auto; scrollbar-width: none; }
   .mobile-scroll::-webkit-scrollbar { display: none; }
   .folder-actions { opacity: 1; pointer-events: auto; }
+  .bookmark-delete-button { opacity: 1; pointer-events: auto; }
 }

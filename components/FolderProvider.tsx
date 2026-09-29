@@ -6,17 +6,19 @@ type CustomFolder = { id: string; name: string };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean };
 type FolderToEdit = FolderToDelete;
-type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[] };
+type BookmarkToDelete = { key: string; title: string; isSaved: boolean };
+type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[] };
 type FolderContextValue = FolderState & {
   openFolderModal: () => void;
   requestDeleteFolder: (folder: FolderToDelete) => void;
   requestEditFolder: (folder: FolderToEdit) => void;
   addBookmark: (bookmark: Omit<SavedBookmark, "id">) => void;
+  requestDeleteBookmark: (bookmark: BookmarkToDelete) => void;
 };
 
 const STORAGE_KEY = "onebite-custom-folders";
 const CHANGE_EVENT = "onebite-folders-changed";
-const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [] };
+const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [], deletedBookmarkKeys: [] };
 const FolderContext = createContext<FolderContextValue | null>(null);
 
 let cachedRaw: string | null = null;
@@ -30,12 +32,13 @@ function getFoldersSnapshot() {
   try {
     const parsed = raw ? JSON.parse(raw) : EMPTY_STATE;
     cachedState = Array.isArray(parsed)
-      ? { customFolders: parsed, deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [] }
+      ? { customFolders: parsed, deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [], deletedBookmarkKeys: [] }
       : {
           customFolders: Array.isArray(parsed.customFolders) ? parsed.customFolders : [],
           deletedFolderIds: Array.isArray(parsed.deletedFolderIds) ? parsed.deletedFolderIds : [],
           renamedFolders: parsed.renamedFolders && typeof parsed.renamedFolders === "object" ? parsed.renamedFolders : {},
           savedBookmarks: Array.isArray(parsed.savedBookmarks) ? parsed.savedBookmarks : [],
+          deletedBookmarkKeys: Array.isArray(parsed.deletedBookmarkKeys) ? parsed.deletedBookmarkKeys : [],
         };
   } catch {
     cachedState = EMPTY_STATE;
@@ -62,21 +65,23 @@ export function FolderProvider({ children }: { children: ReactNode }) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FolderToDelete | null>(null);
   const [editTarget, setEditTarget] = useState<FolderToEdit | null>(null);
+  const [bookmarkDeleteTarget, setBookmarkDeleteTarget] = useState<BookmarkToDelete | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isCreateOpen && !deleteTarget && !editTarget) return;
+    if (!isCreateOpen && !deleteTarget && !editTarget && !bookmarkDeleteTarget) return;
     if (isCreateOpen || editTarget) inputRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsCreateOpen(false);
         setDeleteTarget(null);
         setEditTarget(null);
+        setBookmarkDeleteTarget(null);
       }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isCreateOpen, deleteTarget, editTarget]);
+  }, [isCreateOpen, deleteTarget, editTarget, bookmarkDeleteTarget]);
 
   function addFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,12 +119,21 @@ export function FolderProvider({ children }: { children: ReactNode }) {
     saveState({ ...folderState, savedBookmarks: [...folderState.savedBookmarks, { ...bookmark, id: crypto.randomUUID() }] });
   }
 
+  function deleteBookmark() {
+    if (!bookmarkDeleteTarget) return;
+    saveState(bookmarkDeleteTarget.isSaved
+      ? { ...folderState, savedBookmarks: folderState.savedBookmarks.filter((bookmark) => bookmark.id !== bookmarkDeleteTarget.key) }
+      : { ...folderState, deletedBookmarkKeys: [...new Set([...folderState.deletedBookmarkKeys, bookmarkDeleteTarget.key])] });
+    setBookmarkDeleteTarget(null);
+  }
+
   const closeCreateModal = () => setIsCreateOpen(false);
   const closeDeleteModal = () => setDeleteTarget(null);
   const closeEditModal = () => setEditTarget(null);
+  const closeBookmarkDeleteModal = () => setBookmarkDeleteTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark }}>
+    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -173,6 +187,19 @@ export function FolderProvider({ children }: { children: ReactNode }) {
                 <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit">저장</button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+      {bookmarkDeleteTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeBookmarkDeleteModal(); }}>
+          <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6" role="alertdialog" aria-modal="true" aria-labelledby="delete-bookmark-title" aria-describedby="delete-bookmark-description">
+            <p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--error)]">링크 삭제</p>
+            <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="delete-bookmark-title">‘{bookmarkDeleteTarget.title}’ 링크를 삭제할까요?</h2>
+            <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-sub)]" id="delete-bookmark-description">삭제한 링크는 컬렉션에서 사라집니다. 이 작업은 되돌릴 수 없습니다.</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeBookmarkDeleteModal}>취소</button>
+              <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white" type="button" onClick={deleteBookmark}>삭제</button>
+            </div>
           </section>
         </div>
       )}
