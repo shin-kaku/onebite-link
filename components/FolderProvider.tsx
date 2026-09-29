@@ -7,7 +7,7 @@ import { createClient } from "@/utils/supabase/client";
 type CustomFolder = { id: string; name: string };
 export type DatabaseFolder = { id: string; name: string };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
-type FolderToDelete = CustomFolder & { isCustom: boolean };
+type FolderToDelete = CustomFolder & { isCustom: boolean; isDatabase?: boolean };
 type FolderToEdit = FolderToDelete & { isDatabase?: boolean };
 type BookmarkToDelete = { key: string; title: string; isSaved: boolean };
 export type BookmarkOverride = { title: string; description: string; folderId: string };
@@ -75,6 +75,8 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FolderToDelete | null>(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<FolderToEdit | null>(null);
   const [isEditingFolder, setIsEditingFolder] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -133,8 +135,32 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
     }
   }
 
-  function deleteFolder() {
+  async function deleteFolder() {
     if (!deleteTarget) return;
+
+    if (deleteTarget.isDatabase) {
+      setIsDeletingFolder(true);
+      setDeleteError(null);
+
+      try {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from("folders")
+          .delete()
+          .eq("id", deleteTarget.id);
+
+        if (error) throw error;
+
+        setDatabaseFolders((current) => current.filter((folder) => folder.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } catch {
+        setDeleteError("폴더를 삭제하지 못했습니다. 다시 시도해 주세요.");
+      } finally {
+        setIsDeletingFolder(false);
+      }
+      return;
+    }
+
     saveState(deleteTarget.isCustom
       ? { ...folderState, customFolders: folderState.customFolders.filter((folder) => folder.id !== deleteTarget.id) }
       : { ...folderState, deletedFolderIds: [...new Set([...folderState.deletedFolderIds, deleteTarget.id])] });
@@ -210,7 +236,11 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
     setCreateError(null);
     setIsCreateOpen(false);
   };
-  const closeDeleteModal = () => setDeleteTarget(null);
+  const closeDeleteModal = () => {
+    if (isDeletingFolder) return;
+    setDeleteError(null);
+    setDeleteTarget(null);
+  };
   const closeEditModal = () => {
     if (isEditingFolder) return;
     setEditError(null);
@@ -220,7 +250,7 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
   const closeBookmarkEditModal = () => setBookmarkEditTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: setDeleteTarget, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -250,9 +280,10 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
             <p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--error)]">폴더 삭제</p>
             <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="delete-folder-title">‘{deleteTarget.name}’ 폴더를 삭제할까요?</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-sub)]" id="delete-folder-description">삭제한 폴더는 사이드바에서 사라집니다. 이 작업은 되돌릴 수 없습니다.</p>
+            {deleteError && <p className="mt-3 text-[13px] text-[var(--error)]" role="alert">{deleteError}</p>}
             <div className="mt-6 flex justify-end gap-2">
-              <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeDeleteModal}>취소</button>
-              <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white" type="button" onClick={deleteFolder}>삭제</button>
+              <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeDeleteModal} disabled={isDeletingFolder}>취소</button>
+              <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white" type="button" onClick={deleteFolder} disabled={isDeletingFolder}>{isDeletingFolder ? "삭제 중..." : "삭제"}</button>
             </div>
           </section>
         </div>
