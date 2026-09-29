@@ -3,6 +3,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { BookmarkGrid } from "@/components/BookmarkGrid";
 import { Sidebar } from "@/components/Sidebar";
 import { FolderTitle } from "@/components/FolderTitle";
+import { BookmarkCount } from "@/components/BookmarkCount";
 import { folders, getFolder, getFolderBookmarks, type FolderId } from "@/data/bookmarks";
 
 export function generateStaticParams() {
@@ -26,9 +27,9 @@ export default async function FolderPage({ params }: PageProps<"/folder/[folderI
           <div className="mx-auto max-w-[720px]">
           <div className="mb-7 flex items-end justify-between">
             <div><p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--accent)]">폴더</p><h1 className="text-[30px] font-bold leading-[1.2] tracking-[-0.04em]"><FolderTitle folderId={folder.id} fallback={folder.name} /></h1></div>
-            <span className="text-[14px] text-[var(--text-sub)]">{folderBookmarks.length}개의 링크</span>
+            <span className="text-[14px] text-[var(--text-sub)]"><BookmarkCount baseCount={folderBookmarks.length} folderId={folder.id} /></span>
           </div>
-          <BookmarkGrid items={folderBookmarks} />
+          <BookmarkGrid items={folderBookmarks} folderId={folder.id} />
           </div>
         </main>
       </div>

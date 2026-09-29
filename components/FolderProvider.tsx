@@ -3,18 +3,20 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 
 type CustomFolder = { id: string; name: string };
+export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean };
 type FolderToEdit = FolderToDelete;
-type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>> };
+type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[] };
 type FolderContextValue = FolderState & {
   openFolderModal: () => void;
   requestDeleteFolder: (folder: FolderToDelete) => void;
   requestEditFolder: (folder: FolderToEdit) => void;
+  addBookmark: (bookmark: Omit<SavedBookmark, "id">) => void;
 };
 
 const STORAGE_KEY = "onebite-custom-folders";
 const CHANGE_EVENT = "onebite-folders-changed";
-const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [], renamedFolders: {} };
+const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [] };
 const FolderContext = createContext<FolderContextValue | null>(null);
 
 let cachedRaw: string | null = null;
@@ -28,11 +30,12 @@ function getFoldersSnapshot() {
   try {
     const parsed = raw ? JSON.parse(raw) : EMPTY_STATE;
     cachedState = Array.isArray(parsed)
-      ? { customFolders: parsed, deletedFolderIds: [], renamedFolders: {} }
+      ? { customFolders: parsed, deletedFolderIds: [], renamedFolders: {}, savedBookmarks: [] }
       : {
           customFolders: Array.isArray(parsed.customFolders) ? parsed.customFolders : [],
           deletedFolderIds: Array.isArray(parsed.deletedFolderIds) ? parsed.deletedFolderIds : [],
           renamedFolders: parsed.renamedFolders && typeof parsed.renamedFolders === "object" ? parsed.renamedFolders : {},
+          savedBookmarks: Array.isArray(parsed.savedBookmarks) ? parsed.savedBookmarks : [],
         };
   } catch {
     cachedState = EMPTY_STATE;
@@ -107,12 +110,16 @@ export function FolderProvider({ children }: { children: ReactNode }) {
     setEditTarget(null);
   }
 
+  function addBookmark(bookmark: Omit<SavedBookmark, "id">) {
+    saveState({ ...folderState, savedBookmarks: [...folderState.savedBookmarks, { ...bookmark, id: crypto.randomUUID() }] });
+  }
+
   const closeCreateModal = () => setIsCreateOpen(false);
   const closeDeleteModal = () => setDeleteTarget(null);
   const closeEditModal = () => setEditTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget }}>
+    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>

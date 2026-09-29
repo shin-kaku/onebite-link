@@ -1,6 +1,8 @@
 import { AppHeader } from "@/components/AppHeader";
 import { BookmarkGrid } from "@/components/BookmarkGrid";
 import { Sidebar } from "@/components/Sidebar";
+import { BookmarkCount } from "@/components/BookmarkCount";
+import { bookmarks } from "@/data/bookmarks";
 
 export default function Home() {
   return (
@@ -12,7 +14,7 @@ export default function Home() {
           <div className="mx-auto max-w-[720px]">
           <div className="mb-7 flex items-end justify-between">
             <div><p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--accent)]">내 컬렉션</p><h1 className="text-[30px] font-bold leading-[1.2] tracking-[-0.04em]">모든 링크</h1></div>
-            <span className="text-[14px] text-[var(--text-sub)]">8개의 링크</span>
+            <span className="text-[14px] text-[var(--text-sub)]"><BookmarkCount baseCount={bookmarks.length} /></span>
           </div>
           <BookmarkGrid />
           </div>

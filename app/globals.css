@@ -12,6 +12,7 @@
   --hover-bg: #f1f1ef;
   --success: #4dab9a;
   --error: #eb5757;
+  --error-bg: #fbe9e9;
 }
 
 * { box-sizing: border-box; }
@@ -47,7 +48,7 @@ button, input, select { font: inherit; }
 .folder-row:hover .folder-count,
 .folder-row:focus-within .folder-count { opacity: 0; }
 .folder-action-button:hover { background: #e8e8e5; color: var(--text); }
-.folder-action-button:last-child:hover { background: #fbe9e9; color: var(--error); }
+.folder-action-button:last-child:hover { background: var(--error-bg); color: var(--error); }
 
 .site-react { background: #087ea4; }
 .site-nextjs { background: #262626; }
