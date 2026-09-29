@@ -8,7 +8,7 @@ type CustomFolder = { id: string; name: string };
 export type DatabaseFolder = { id: string; name: string };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean };
-type FolderToEdit = FolderToDelete;
+type FolderToEdit = FolderToDelete & { isDatabase?: boolean };
 type BookmarkToDelete = { key: string; title: string; isSaved: boolean };
 export type BookmarkOverride = { title: string; description: string; folderId: string };
 type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean };
@@ -76,6 +76,8 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
   const [createError, setCreateError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FolderToDelete | null>(null);
   const [editTarget, setEditTarget] = useState<FolderToEdit | null>(null);
+  const [isEditingFolder, setIsEditingFolder] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [bookmarkDeleteTarget, setBookmarkDeleteTarget] = useState<BookmarkToDelete | null>(null);
   const [bookmarkEditTarget, setBookmarkEditTarget] = useState<BookmarkToEdit | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -139,12 +141,35 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
     setDeleteTarget(null);
   }
 
-  function editFolder(event: FormEvent<HTMLFormElement>) {
+  async function editFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editTarget) return;
     const form = new FormData(event.currentTarget);
     const name = String(form.get("folderName") ?? "").trim();
     if (!name) return;
+
+    if (editTarget.isDatabase) {
+      setIsEditingFolder(true);
+      setEditError(null);
+
+      try {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from("folders")
+          .update({ nam: name })
+          .eq("id", editTarget.id);
+
+        if (error) throw error;
+
+        setDatabaseFolders((current) => current.map((folder) => folder.id === editTarget.id ? { ...folder, name } : folder));
+        setEditTarget(null);
+      } catch {
+        setEditError("폴더 이름을 수정하지 못했습니다. 다시 시도해 주세요.");
+      } finally {
+        setIsEditingFolder(false);
+      }
+      return;
+    }
 
     saveState(editTarget.isCustom
       ? { ...folderState, customFolders: folderState.customFolders.map((folder) => folder.id === editTarget.id ? { ...folder, name } : folder) }
@@ -186,12 +211,16 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
     setIsCreateOpen(false);
   };
   const closeDeleteModal = () => setDeleteTarget(null);
-  const closeEditModal = () => setEditTarget(null);
+  const closeEditModal = () => {
+    if (isEditingFolder) return;
+    setEditError(null);
+    setEditTarget(null);
+  };
   const closeBookmarkDeleteModal = () => setBookmarkDeleteTarget(null);
   const closeBookmarkEditModal = () => setBookmarkEditTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: setDeleteTarget, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -236,14 +265,15 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
               <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="edit-folder-title">폴더 이름 바꾸기</h2>
               <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-sub)]">새로운 폴더 이름을 입력하세요.</p>
             </div>
-            <form className="grid gap-5" onSubmit={editFolder}>
+            <form className="grid gap-5" onSubmit={editFolder} aria-busy={isEditingFolder}>
               <div className="grid gap-2">
                 <label className="text-[14px] font-semibold" htmlFor="edit-folder-name">폴더 이름</label>
-                <input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base transition-colors" id="edit-folder-name" name="folderName" defaultValue={editTarget.name} maxLength={30} required />
+                <input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base transition-colors" id="edit-folder-name" name="folderName" defaultValue={editTarget.name} maxLength={30} required disabled={isEditingFolder} />
               </div>
+              {editError && <p className="text-[13px] text-[var(--error)]" role="alert">{editError}</p>}
               <div className="flex justify-end gap-2">
-                <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeEditModal}>취소</button>
-                <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit">저장</button>
+                <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeEditModal} disabled={isEditingFolder}>취소</button>
+                <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit" disabled={isEditingFolder}>{isEditingFolder ? "저장 중..." : "저장"}</button>
               </div>
             </form>
           </section>
