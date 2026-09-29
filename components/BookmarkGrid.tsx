@@ -19,8 +19,9 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
   const { customFolders, databaseFolders, renamedFolders, bookmarkOverrides, requestDeleteBookmark, requestEditBookmark } = useFolders();
   const isDatabase = isDatabaseLink(bookmark);
   const isSaved = isSavedBookmark(bookmark);
+  const hasRichPreview = isDatabase || isSaved;
   const key = isDatabase || isSaved ? bookmark.id : bookmark.url;
-  const override = isSaved ? undefined : bookmarkOverrides[key];
+  const override = hasRichPreview ? undefined : bookmarkOverrides[key];
   const title = override?.title ?? bookmark.title;
   const description = override?.description ?? bookmark.description;
   const folderId = override?.folderId ?? bookmark.folderId;
@@ -38,12 +39,12 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
         <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 수정`} onClick={() => requestEditBookmark({ key, title, description, folderId, isSaved, isDatabase })}><PencilIcon className="size-4"/></button>
         <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key, title, isSaved, isDatabase })}><TrashIcon className="size-4"/></button>
       </span>
-      {isSaved && bookmark.thumbnail && (
+      {hasRichPreview && bookmark.thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="h-44 w-full border-b border-[var(--border)] object-cover" src={bookmark.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" />
       )}
       <div className="flex min-w-0 flex-1 flex-col p-5">
-        {isSaved ? (
+        {hasRichPreview ? (
           <>
             <div className="flex items-start justify-between gap-3">
               <h2 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-[-0.025em]">{title}</h2>
