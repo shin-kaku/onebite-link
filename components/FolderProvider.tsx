@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 
 type CustomFolder = { id: string; name: string };
 export type DatabaseFolder = { id: string; name: string };
+export type DatabaseLink = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string; source: "database" };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean; isDatabase?: boolean };
 type FolderToEdit = FolderToDelete & { isDatabase?: boolean };
@@ -15,6 +16,8 @@ type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean };
 type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[]; bookmarkOverrides: Readonly<Record<string, BookmarkOverride>> };
 type FolderContextValue = FolderState & {
   databaseFolders: readonly DatabaseFolder[];
+  databaseLinks: readonly DatabaseLink[];
+  addDatabaseLink: (link: DatabaseLink) => void;
   openFolderModal: () => void;
   requestDeleteFolder: (folder: FolderToDelete) => void;
   requestEditFolder: (folder: FolderToEdit) => void;
@@ -68,9 +71,10 @@ function saveState(state: FolderState) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
-export function FolderProvider({ children, initialDatabaseFolders }: { children: ReactNode; initialDatabaseFolders: DatabaseFolder[] }) {
+export function FolderProvider({ children, initialDatabaseFolders, initialDatabaseLinks }: { children: ReactNode; initialDatabaseFolders: DatabaseFolder[]; initialDatabaseLinks: DatabaseLink[] }) {
   const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
   const [databaseFolders, setDatabaseFolders] = useState(initialDatabaseFolders);
+  const [databaseLinks, setDatabaseLinks] = useState(initialDatabaseLinks);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -250,7 +254,7 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
   const closeBookmarkEditModal = () => setBookmarkEditTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -331,7 +335,7 @@ export function FolderProvider({ children, initialDatabaseFolders }: { children:
               <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="edit-bookmark-title">링크 정보 수정하기</h2>
             </div>
             <form className="grid gap-4" onSubmit={editBookmark}>
-              <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-folder">폴더</label><select className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base" id="edit-bookmark-folder" name="folder" defaultValue={bookmarkEditTarget.folderId} required>{folders.filter((folder) => !folderState.deletedFolderIds.includes(folder.id)).map((folder) => <option key={folder.id} value={folder.id}>{folderState.renamedFolders[folder.id] ?? folder.name}</option>)}{folderState.customFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></div>
+              <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-folder">폴더</label><select className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base" id="edit-bookmark-folder" name="folder" defaultValue={bookmarkEditTarget.folderId} required>{databaseFolders.map((folder) => <option key={`database-${folder.id}`} value={folder.id}>{folder.name}</option>)}{folders.filter((folder) => !folderState.deletedFolderIds.includes(folder.id)).map((folder) => <option key={folder.id} value={folder.id}>{folderState.renamedFolders[folder.id] ?? folder.name}</option>)}{folderState.customFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></div>
               <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-name">제목</label><input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base" id="edit-bookmark-name" name="title" defaultValue={bookmarkEditTarget.title} maxLength={120} required /></div>
               <div className="grid gap-2"><label className="text-[14px] font-semibold" htmlFor="edit-bookmark-description">설명</label><textarea className="min-h-28 w-full resize-y rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base leading-relaxed outline-none focus:border-[var(--accent)]" id="edit-bookmark-description" name="description" defaultValue={bookmarkEditTarget.description} maxLength={300} required /></div>
               <div className="mt-2 flex justify-end gap-2"><button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeBookmarkEditModal}>취소</button><button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit">저장</button></div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LinkLogoIcon } from "./icons";
+import { TypographyLogoIcon } from "./icons";
 import { useFolders } from "./FolderProvider";
 
 export function AppHeader() {
@@ -14,8 +14,8 @@ export function AppHeader() {
         href="/"
         aria-label="타이포그래피 기초 북마크 홈"
       >
-        <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent)] p-2 text-white">
-          <LinkLogoIcon />
+        <span className="grid size-8 place-items-center rounded-lg bg-[var(--text)] p-1.5 text-white">
+          <TypographyLogoIcon />
         </span>
         <span>타이포그래피 기초 북마크</span>
       </Link>

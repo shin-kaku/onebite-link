@@ -2,21 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { folders } from "@/data/bookmarks";
+import { useRef, useState, type FormEvent } from "react";
+import { createClient } from "@/utils/supabase/client";
 import { useFolders } from "./FolderProvider";
 
 type OgResponse = { title: string; description: string; thumbnail: string | null; url: string; error?: never } | { error: string };
 
 export function NewLinkForm() {
   const router = useRouter();
-  const { customFolders, deletedFolderIds, renamedFolders, addBookmark } = useFolders();
+  const { databaseFolders, addDatabaseLink } = useFolders();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const visibleFolders = folders.filter((folder) => !deletedFolderIds.includes(folder.id));
+  const isSavingRef = useRef(false);
 
   async function saveLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSavingRef.current) return;
+
+    isSavingRef.current = true;
     setIsLoading(true);
     setError("");
     const form = new FormData(event.currentTarget);
@@ -29,11 +32,37 @@ export function NewLinkForm() {
       });
       const data = await response.json() as OgResponse;
       if (!response.ok || "error" in data) throw new Error(data.error || "링크 정보를 가져오지 못했습니다.");
-      addBookmark({ title: data.title, description: data.description, thumbnail: data.thumbnail, url: data.url, folderId: String(form.get("folder")) });
+
+      const folderId = String(form.get("folder"));
+      const supabase = createClient();
+      const { data: insertedLink, error: insertError } = await supabase
+        .from("links")
+        .insert({
+          url: data.url,
+          title: data.title,
+          description: data.description,
+          thumbanil_url: data.thumbnail,
+          folder_id: folderId,
+        })
+        .select("id, url, title, description, thumbanil_url, folder_id")
+        .single();
+
+      if (insertError) throw insertError;
+
+      addDatabaseLink({
+        id: String(insertedLink.id),
+        title: insertedLink.title ?? insertedLink.url,
+        description: insertedLink.description ?? "",
+        thumbnail: insertedLink.thumbanil_url,
+        url: insertedLink.url,
+        folderId: insertedLink.folder_id === null ? "" : String(insertedLink.folder_id),
+        source: "database",
+      });
       router.push("/");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "링크를 저장하지 못했습니다.");
       setIsLoading(false);
+      isSavingRef.current = false;
     }
   }
 
@@ -57,8 +86,7 @@ export function NewLinkForm() {
           <div className="relative">
             <select className="h-11 w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base transition-colors" id="link-folder" name="folder" defaultValue="" required disabled={isLoading}>
               <option value="" disabled>폴더를 선택해주세요</option>
-              {visibleFolders.map((folder) => <option key={folder.id} value={folder.id}>{renamedFolders[folder.id] ?? folder.name}</option>)}
-              {customFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              {databaseFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
             </select>
             <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-[var(--text-sub)]">⌄</span>
           </div>
@@ -68,7 +96,7 @@ export function NewLinkForm() {
 
         <div className="mt-2 flex justify-end gap-2">
           <Link className="secondary-hover inline-flex h-10 items-center justify-center rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" href="/">취소</Link>
-          <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40" type="submit" disabled={isLoading}>{isLoading ? "정보 가져오는 중…" : "확인"}</button>
+          <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40" type="submit" disabled={isLoading}>{isLoading ? "저장 중…" : "확인"}</button>
         </div>
       </form>
     </section>
