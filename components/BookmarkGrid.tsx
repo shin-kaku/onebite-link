@@ -36,7 +36,7 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
     <article className="bookmark-card card-hover relative flex min-h-52 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       <span className="bookmark-actions absolute top-3 right-3 z-10">
         <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 수정`} onClick={() => requestEditBookmark({ key, title, description, folderId, isSaved, isDatabase })}><PencilIcon className="size-4"/></button>
-        {!isDatabase && <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key, title, isSaved })}><TrashIcon className="size-4"/></button>}
+        <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key, title, isSaved, isDatabase })}><TrashIcon className="size-4"/></button>
       </span>
       {isSaved && bookmark.thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element

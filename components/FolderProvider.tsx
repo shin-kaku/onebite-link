@@ -10,7 +10,7 @@ export type DatabaseLink = { id: string; title: string; description: string; thu
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean; isDatabase?: boolean };
 type FolderToEdit = FolderToDelete & { isDatabase?: boolean };
-type BookmarkToDelete = { key: string; title: string; isSaved: boolean };
+type BookmarkToDelete = { key: string; title: string; isSaved: boolean; isDatabase?: boolean };
 export type BookmarkOverride = { title: string; description: string; folderId: string };
 type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean; isDatabase?: boolean };
 type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[]; bookmarkOverrides: Readonly<Record<string, BookmarkOverride>> };
@@ -85,6 +85,8 @@ export function FolderProvider({ children, initialDatabaseFolders, initialDataba
   const [isEditingFolder, setIsEditingFolder] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [bookmarkDeleteTarget, setBookmarkDeleteTarget] = useState<BookmarkToDelete | null>(null);
+  const [isDeletingBookmark, setIsDeletingBookmark] = useState(false);
+  const [bookmarkDeleteError, setBookmarkDeleteError] = useState<string | null>(null);
   const [bookmarkEditTarget, setBookmarkEditTarget] = useState<BookmarkToEdit | null>(null);
   const [isEditingBookmark, setIsEditingBookmark] = useState(false);
   const [bookmarkEditError, setBookmarkEditError] = useState<string | null>(null);
@@ -213,8 +215,34 @@ export function FolderProvider({ children, initialDatabaseFolders, initialDataba
     saveState({ ...folderState, savedBookmarks: [...folderState.savedBookmarks, { ...bookmark, id: crypto.randomUUID() }] });
   }
 
-  function deleteBookmark() {
+  async function deleteBookmark() {
     if (!bookmarkDeleteTarget) return;
+
+    if (bookmarkDeleteTarget.isDatabase) {
+      setIsDeletingBookmark(true);
+      setBookmarkDeleteError(null);
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("links")
+          .delete()
+          .eq("id", bookmarkDeleteTarget.key)
+          .select("id")
+          .single();
+
+        if (error) throw error;
+
+        setDatabaseLinks((current) => current.filter((link) => link.id !== String(data.id)));
+        setBookmarkDeleteTarget(null);
+      } catch {
+        setBookmarkDeleteError("링크를 삭제하지 못했습니다. 다시 시도해 주세요.");
+      } finally {
+        setIsDeletingBookmark(false);
+      }
+      return;
+    }
+
     saveState(bookmarkDeleteTarget.isSaved
       ? { ...folderState, savedBookmarks: folderState.savedBookmarks.filter((bookmark) => bookmark.id !== bookmarkDeleteTarget.key) }
       : { ...folderState, deletedBookmarkKeys: [...new Set([...folderState.deletedBookmarkKeys, bookmarkDeleteTarget.key])] });
@@ -284,7 +312,11 @@ export function FolderProvider({ children, initialDatabaseFolders, initialDataba
     setEditError(null);
     setEditTarget(null);
   };
-  const closeBookmarkDeleteModal = () => setBookmarkDeleteTarget(null);
+  const closeBookmarkDeleteModal = () => {
+    if (isDeletingBookmark) return;
+    setBookmarkDeleteError(null);
+    setBookmarkDeleteTarget(null);
+  };
   const closeBookmarkEditModal = () => {
     if (isEditingBookmark) return;
     setBookmarkEditError(null);
@@ -292,7 +324,7 @@ export function FolderProvider({ children, initialDatabaseFolders, initialDataba
   };
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -358,9 +390,10 @@ export function FolderProvider({ children, initialDatabaseFolders, initialDataba
             <p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--error)]">링크 삭제</p>
             <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="delete-bookmark-title">‘{bookmarkDeleteTarget.title}’ 링크를 삭제할까요?</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-sub)]" id="delete-bookmark-description">삭제한 링크는 컬렉션에서 사라집니다. 이 작업은 되돌릴 수 없습니다.</p>
+            {bookmarkDeleteError && <p className="mt-3 text-[13px] text-[var(--error)]" role="alert">{bookmarkDeleteError}</p>}
             <div className="mt-6 flex justify-end gap-2">
-              <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeBookmarkDeleteModal}>취소</button>
-              <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white" type="button" onClick={deleteBookmark}>삭제</button>
+              <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeBookmarkDeleteModal} disabled={isDeletingBookmark}>취소</button>
+              <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={deleteBookmark} disabled={isDeletingBookmark}>{isDeletingBookmark ? "삭제 중..." : "삭제"}</button>
             </div>
           </section>
         </div>
