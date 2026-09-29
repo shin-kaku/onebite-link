@@ -2,8 +2,10 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { folders } from "@/data/bookmarks";
+import { createClient } from "@/utils/supabase/client";
 
 type CustomFolder = { id: string; name: string };
+export type DatabaseFolder = { id: string; name: string };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean };
 type FolderToEdit = FolderToDelete;
@@ -12,6 +14,7 @@ export type BookmarkOverride = { title: string; description: string; folderId: s
 type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean };
 type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[]; bookmarkOverrides: Readonly<Record<string, BookmarkOverride>> };
 type FolderContextValue = FolderState & {
+  databaseFolders: readonly DatabaseFolder[];
   openFolderModal: () => void;
   requestDeleteFolder: (folder: FolderToDelete) => void;
   requestEditFolder: (folder: FolderToEdit) => void;
@@ -65,14 +68,18 @@ function saveState(state: FolderState) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
-export function FolderProvider({ children }: { children: ReactNode }) {
+export function FolderProvider({ children, initialDatabaseFolders }: { children: ReactNode; initialDatabaseFolders: DatabaseFolder[] }) {
   const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
+  const [databaseFolders, setDatabaseFolders] = useState(initialDatabaseFolders);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isAddingFolder, setIsAddingFolder] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FolderToDelete | null>(null);
   const [editTarget, setEditTarget] = useState<FolderToEdit | null>(null);
   const [bookmarkDeleteTarget, setBookmarkDeleteTarget] = useState<BookmarkToDelete | null>(null);
   const [bookmarkEditTarget, setBookmarkEditTarget] = useState<BookmarkToEdit | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isAddingFolderRef = useRef(false);
 
   useEffect(() => {
     if (!isCreateOpen && !deleteTarget && !editTarget && !bookmarkDeleteTarget && !bookmarkEditTarget) return;
@@ -90,15 +97,38 @@ export function FolderProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isCreateOpen, deleteTarget, editTarget, bookmarkDeleteTarget, bookmarkEditTarget]);
 
-  function addFolder(event: FormEvent<HTMLFormElement>) {
+  async function addFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    if (isAddingFolderRef.current) return;
+
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("folderName") ?? "").trim();
     if (!name) return;
 
-    const folder: CustomFolder = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name };
-    saveState({ ...folderState, customFolders: [...folderState.customFolders, folder] });
-    setIsCreateOpen(false);
+    isAddingFolderRef.current = true;
+    setIsAddingFolder(true);
+    setCreateError(null);
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("folders")
+        .insert({ nam: name })
+        .select("id, nam")
+        .single();
+
+      if (error) throw error;
+
+      setDatabaseFolders((current) => [...current, { id: String(data.id), name: data.nam }]);
+      formElement.reset();
+      setIsCreateOpen(false);
+    } catch {
+      setCreateError("폴더를 저장하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      isAddingFolderRef.current = false;
+      setIsAddingFolder(false);
+    }
   }
 
   function deleteFolder() {
@@ -150,14 +180,18 @@ export function FolderProvider({ children }: { children: ReactNode }) {
     setBookmarkEditTarget(null);
   }
 
-  const closeCreateModal = () => setIsCreateOpen(false);
+  const closeCreateModal = () => {
+    if (isAddingFolderRef.current) return;
+    setCreateError(null);
+    setIsCreateOpen(false);
+  };
   const closeDeleteModal = () => setDeleteTarget(null);
   const closeEditModal = () => setEditTarget(null);
   const closeBookmarkDeleteModal = () => setBookmarkDeleteTarget(null);
   const closeBookmarkEditModal = () => setBookmarkEditTarget(null);
 
   return (
-    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: setDeleteTarget, requestEditFolder: setEditTarget, addBookmark, requestDeleteBookmark: setBookmarkDeleteTarget, requestEditBookmark: setBookmarkEditTarget }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
@@ -167,14 +201,15 @@ export function FolderProvider({ children }: { children: ReactNode }) {
               <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="new-folder-title">새 폴더 만들기</h2>
               <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-sub)]">관련된 링크를 모아둘 폴더의 이름을 입력하세요.</p>
             </div>
-            <form className="grid gap-5" onSubmit={addFolder}>
+            <form className="grid gap-5" onSubmit={addFolder} aria-busy={isAddingFolder}>
               <div className="grid gap-2">
                 <label className="text-[14px] font-semibold" htmlFor="folder-name">폴더 이름</label>
-                <input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base transition-colors" id="folder-name" name="folderName" placeholder="예: 읽어볼 글" maxLength={30} required />
+                <input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base transition-colors" id="folder-name" name="folderName" placeholder="예: 읽어볼 글" maxLength={30} required disabled={isAddingFolder} />
               </div>
+              {createError && <p className="text-[13px] text-[var(--error)]" role="alert">{createError}</p>}
               <div className="flex justify-end gap-2">
-                <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeCreateModal}>취소</button>
-                <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit">저장</button>
+                <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeCreateModal} disabled={isAddingFolder}>취소</button>
+                <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit" disabled={isAddingFolder}>{isAddingFolder ? "저장 중..." : "저장"}</button>
               </div>
             </form>
           </section>
