@@ -25,7 +25,7 @@ body {
 a { color: inherit; text-decoration: none; }
 button, input, select { font: inherit; }
 
-.nav-hover, .card-hover, .secondary-hover, .primary-hover, .external-hover {
+.nav-hover, .card-hover, .secondary-hover, .primary-hover, .external-hover, .delete-hover, .folder-delete-button {
   transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
 }
 .nav-hover:not(.nav-active):hover, .secondary-hover:hover { background: var(--hover-bg); }
@@ -36,9 +36,16 @@ button, input, select { font: inherit; }
 }
 .card-hover:hover { background: var(--hover-bg); border-color: #d5d5d1; transform: translateY(-2px); }
 .primary-hover:hover { background: var(--accent-hover); }
+.delete-hover:hover { background: #cf4141; }
 .external-hover:hover { color: var(--accent); }
 .external-hover:hover svg { transform: translate(2px, -2px); }
 .external-hover svg { transition: transform .15s ease; }
+.folder-delete-button { opacity: 0; pointer-events: none; }
+.folder-row:hover .folder-delete-button,
+.folder-row:focus-within .folder-delete-button { opacity: 1; pointer-events: auto; }
+.folder-row:hover .folder-count,
+.folder-row:focus-within .folder-count { opacity: 0; }
+.folder-delete-button:hover { background: #fbe9e9; color: var(--error); }
 
 .site-react { background: #087ea4; }
 .site-nextjs { background: #262626; }
@@ -60,4 +67,5 @@ input:focus, select:focus {
 @media (max-width: 720px) {
   .mobile-scroll { overflow-x: auto; scrollbar-width: none; }
   .mobile-scroll::-webkit-scrollbar { display: none; }
+  .folder-delete-button { opacity: 1; pointer-events: auto; }
 }

@@ -3,31 +3,38 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 
 type CustomFolder = { id: string; name: string };
-type FolderContextValue = {
-  customFolders: readonly CustomFolder[];
+type FolderToDelete = CustomFolder & { isCustom: boolean };
+type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[] };
+type FolderContextValue = FolderState & {
   openFolderModal: () => void;
+  requestDeleteFolder: (folder: FolderToDelete) => void;
 };
 
 const STORAGE_KEY = "onebite-custom-folders";
 const CHANGE_EVENT = "onebite-folders-changed";
-const EMPTY_FOLDERS: readonly CustomFolder[] = [];
+const EMPTY_STATE: FolderState = { customFolders: [], deletedFolderIds: [] };
 const FolderContext = createContext<FolderContextValue | null>(null);
 
 let cachedRaw: string | null = null;
-let cachedFolders: readonly CustomFolder[] = EMPTY_FOLDERS;
+let cachedState: FolderState = EMPTY_STATE;
 
 function getFoldersSnapshot() {
   const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw === cachedRaw) return cachedFolders;
-
+  if (raw === cachedRaw) return cachedState;
   cachedRaw = raw;
+
   try {
-    const parsed = raw ? JSON.parse(raw) : [];
-    cachedFolders = Array.isArray(parsed) ? parsed : EMPTY_FOLDERS;
+    const parsed = raw ? JSON.parse(raw) : EMPTY_STATE;
+    cachedState = Array.isArray(parsed)
+      ? { customFolders: parsed, deletedFolderIds: [] }
+      : {
+          customFolders: Array.isArray(parsed.customFolders) ? parsed.customFolders : [],
+          deletedFolderIds: Array.isArray(parsed.deletedFolderIds) ? parsed.deletedFolderIds : [],
+        };
   } catch {
-    cachedFolders = EMPTY_FOLDERS;
+    cachedState = EMPTY_STATE;
   }
-  return cachedFolders;
+  return cachedState;
 }
 
 function subscribeToFolders(onChange: () => void) {
@@ -39,20 +46,29 @@ function subscribeToFolders(onChange: () => void) {
   };
 }
 
+function saveState(state: FolderState) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
 export function FolderProvider({ children }: { children: ReactNode }) {
-  const customFolders = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_FOLDERS);
-  const [isOpen, setIsOpen] = useState(false);
+  const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<FolderToDelete | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
-    inputRef.current?.focus();
+    if (!isCreateOpen && !deleteTarget) return;
+    if (isCreateOpen) inputRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsOpen(false);
+      if (event.key === "Escape") {
+        setIsCreateOpen(false);
+        setDeleteTarget(null);
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen]);
+  }, [isCreateOpen, deleteTarget]);
 
   function addFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,20 +76,27 @@ export function FolderProvider({ children }: { children: ReactNode }) {
     const name = String(form.get("folderName") ?? "").trim();
     if (!name) return;
 
-    const folder: CustomFolder = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name,
-    };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...customFolders, folder]));
-    window.dispatchEvent(new Event(CHANGE_EVENT));
-    setIsOpen(false);
+    const folder: CustomFolder = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name };
+    saveState({ ...folderState, customFolders: [...folderState.customFolders, folder] });
+    setIsCreateOpen(false);
   }
 
+  function deleteFolder() {
+    if (!deleteTarget) return;
+    saveState(deleteTarget.isCustom
+      ? { ...folderState, customFolders: folderState.customFolders.filter((folder) => folder.id !== deleteTarget.id) }
+      : { ...folderState, deletedFolderIds: [...new Set([...folderState.deletedFolderIds, deleteTarget.id])] });
+    setDeleteTarget(null);
+  }
+
+  const closeCreateModal = () => setIsCreateOpen(false);
+  const closeDeleteModal = () => setDeleteTarget(null);
+
   return (
-    <FolderContext.Provider value={{ customFolders, openFolderModal: () => setIsOpen(true) }}>
+    <FolderContext.Provider value={{ ...folderState, openFolderModal: () => setIsCreateOpen(true), requestDeleteFolder: setDeleteTarget }}>
       {children}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsOpen(false); }}>
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
           <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6" role="dialog" aria-modal="true" aria-labelledby="new-folder-title">
             <div className="mb-6">
               <p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--accent)]">새 컬렉션</p>
@@ -86,10 +109,23 @@ export function FolderProvider({ children }: { children: ReactNode }) {
                 <input ref={inputRef} className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 text-base transition-colors" id="folder-name" name="folderName" placeholder="예: 읽어볼 글" maxLength={30} required />
               </div>
               <div className="flex justify-end gap-2">
-                <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={() => setIsOpen(false)}>취소</button>
+                <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeCreateModal}>취소</button>
                 <button className="primary-hover h-10 cursor-pointer rounded-md bg-[var(--accent)] px-4 text-[14px] font-semibold text-white" type="submit">저장</button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDeleteModal(); }}>
+          <section className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6" role="alertdialog" aria-modal="true" aria-labelledby="delete-folder-title" aria-describedby="delete-folder-description">
+            <p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--error)]">폴더 삭제</p>
+            <h2 className="text-xl font-semibold leading-[1.3] tracking-[-0.025em]" id="delete-folder-title">‘{deleteTarget.name}’ 폴더를 삭제할까요?</h2>
+            <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-sub)]" id="delete-folder-description">삭제한 폴더는 사이드바에서 사라집니다. 이 작업은 되돌릴 수 없습니다.</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button className="secondary-hover h-10 cursor-pointer rounded-md border border-[var(--border)] px-4 text-[14px] font-semibold" type="button" onClick={closeDeleteModal}>취소</button>
+              <button className="delete-hover h-10 cursor-pointer rounded-md bg-[var(--error)] px-4 text-[14px] font-semibold text-white" type="button" onClick={deleteFolder}>삭제</button>
+            </div>
           </section>
         </div>
       )}
