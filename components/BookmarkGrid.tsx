@@ -12,14 +12,14 @@ function isDatabaseLink(bookmark: BookmarkItem): bookmark is DatabaseLink {
 }
 
 function isSavedBookmark(bookmark: BookmarkItem): bookmark is SavedBookmark {
-  return "id" in bookmark;
+  return "id" in bookmark && !isDatabaseLink(bookmark);
 }
 
 function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
   const { customFolders, databaseFolders, renamedFolders, bookmarkOverrides, requestDeleteBookmark, requestEditBookmark } = useFolders();
   const isDatabase = isDatabaseLink(bookmark);
   const isSaved = isSavedBookmark(bookmark);
-  const key = isSaved ? bookmark.id : bookmark.url;
+  const key = isDatabase || isSaved ? bookmark.id : bookmark.url;
   const override = isSaved ? undefined : bookmarkOverrides[key];
   const title = override?.title ?? bookmark.title;
   const description = override?.description ?? bookmark.description;
@@ -34,10 +34,10 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
 
   return (
     <article className="bookmark-card card-hover relative flex min-h-52 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-      {!isDatabase && <span className="bookmark-actions absolute top-3 right-3 z-10">
-        <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 수정`} onClick={() => requestEditBookmark({ key, title, description, folderId, isSaved })}><PencilIcon className="size-4"/></button>
-        <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key, title, isSaved })}><TrashIcon className="size-4"/></button>
-      </span>}
+      <span className="bookmark-actions absolute top-3 right-3 z-10">
+        <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 수정`} onClick={() => requestEditBookmark({ key, title, description, folderId, isSaved, isDatabase })}><PencilIcon className="size-4"/></button>
+        {!isDatabase && <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key, title, isSaved })}><TrashIcon className="size-4"/></button>}
+      </span>
       {isSaved && bookmark.thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="h-44 w-full border-b border-[var(--border)] object-cover" src={bookmark.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" />
