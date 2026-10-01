@@ -26,7 +26,7 @@ body {
 a { color: inherit; text-decoration: none; }
 button, input, select { font: inherit; }
 
-.nav-hover, .card-hover, .secondary-hover, .primary-hover, .external-hover, .delete-hover, .folder-action-button, .bookmark-action-button, .auth-logo-hover, .auth-link-hover {
+.nav-hover, .card-hover, .secondary-hover, .primary-hover, .external-hover, .delete-hover, .folder-action-button, .bookmark-action-button, .auth-logo-hover, .auth-link-hover, .logout-hover {
   transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
 }
 .nav-hover:not(.nav-active):hover, .secondary-hover:hover { background: var(--hover-bg); }
@@ -39,6 +39,7 @@ button, input, select { font: inherit; }
 .primary-hover:hover { background: var(--accent-hover); }
 .auth-logo-hover:hover { background: var(--hover-bg); }
 .auth-link-hover:hover { color: var(--accent-hover); text-decoration: underline; }
+.logout-hover:hover:not(:disabled) { border-color: var(--error); background: var(--error-bg); color: var(--error); }
 .delete-hover:hover { background: #cf4141; }
 .external-hover:hover { color: var(--accent); }
 .external-hover:hover svg { transform: translate(2px, -2px); }
