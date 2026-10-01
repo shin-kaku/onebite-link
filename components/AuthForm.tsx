@@ -15,6 +15,7 @@ type AuthFormProps = {
 export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
   const isSignup = mode === "signup";
   const router = useRouter();
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -22,7 +23,7 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isKakaoSubmitting, setIsKakaoSubmitting] = useState(false);
   const canSubmit = isSignup
-    ? Boolean(email.trim() && password && passwordConfirm) && !isSubmitting
+    ? Boolean(displayName.trim() && email.trim() && password && passwordConfirm) && !isSubmitting
     : Boolean(email.trim() && password) && !isSubmitting;
 
   const getAuthErrorMessage = (message: string) => {
@@ -68,6 +69,16 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
 
     setErrorMessage("");
 
+    if (isSignup && password.length < 6) {
+      setErrorMessage("비밀번호는 6자 이상 입력해 주세요.");
+      return;
+    }
+
+    if (isSignup && /[^\p{L}\p{N}]/u.test(password)) {
+      setErrorMessage("비밀번호에는 특수기호를 사용할 수 없습니다.");
+      return;
+    }
+
     if (isSignup && password !== passwordConfirm) {
       setErrorMessage("비밀번호가 일치하지 않습니다.");
       return;
@@ -79,7 +90,10 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
       const supabase = createClient();
       const credentials = { email: email.trim(), password };
       const { error } = isSignup
-        ? await supabase.auth.signUp(credentials)
+        ? await supabase.auth.signUp({
+            ...credentials,
+            options: { data: { display_name: displayName.trim() } },
+          })
         : await supabase.auth.signInWithPassword(credentials);
 
       if (error) {
@@ -164,6 +178,26 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
           </div>
 
           <form className="grid gap-5" onSubmit={handleSubmit} noValidate>
+            {isSignup ? (
+              <div className="grid gap-2">
+                <label className="text-[14px] font-semibold" htmlFor="signup-display-name">
+                  이름
+                </label>
+                <input
+                  className="h-11 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-[16px] transition-colors duration-150"
+                  id="signup-display-name"
+                  name="displayName"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="이름을 입력하세요"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  maxLength={50}
+                  required
+                />
+              </div>
+            ) : null}
+
             <div className="grid gap-2">
               <label className="text-[14px] font-semibold" htmlFor={`${mode}-email`}>
                 이메일
@@ -212,8 +246,13 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
                   placeholder="비밀번호를 한 번 더 입력하세요"
                   value={passwordConfirm}
                   onChange={(event) => setPasswordConfirm(event.target.value)}
+                  aria-describedby="signup-password-help"
                   required
                 />
+                <ul className="grid gap-1 text-xs leading-relaxed text-[var(--text-sub)]" id="signup-password-help">
+                  <li>• 특수기호는 사용할 수 없습니다.</li>
+                  <li>• 비밀번호는 6자 이상 입력해야 합니다.</li>
+                </ul>
               </div>
             ) : null}
 

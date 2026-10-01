@@ -79,7 +79,7 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
         </section>
       </nav>
       <div className="mt-3 grid gap-3 md:mt-0">
-        <div className="hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 md:block"><span className="text-[11px] font-semibold text-[var(--accent)]">TIP</span><p className="mt-2 text-xs leading-relaxed text-[var(--text-sub)]">링크를 폴더로 정리하면<br/>나중에 더 쉽게 찾을 수 있어요.</p></div>
+        <div className="hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 md:block"><span className="text-[11px] font-semibold text-[var(--accent)]">TIP</span><p className="mt-2 text-xs leading-relaxed text-[var(--text-sub)]">폴더로 북마크를 정리하면,<br/>나중에 더 쉽게 찾을 수 있어요.</p></div>
         <button className="logout-hover flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-[14px] font-medium text-[var(--text-sub)] disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={handleSignOut} disabled={isSigningOut}>
           <LogoutIcon className="size-[18px]" />
           <span>{isSigningOut ? "로그아웃 중..." : "로그아웃"}</span>
