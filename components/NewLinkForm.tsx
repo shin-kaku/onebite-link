@@ -8,6 +8,13 @@ import { useFolders } from "./FolderProvider";
 
 type OgResponse = { title: string; description: string; thumbnail: string | null; url: string; error?: never } | { error: string };
 
+function normalizeUrlForDuplicateCheck(value: string) {
+  const url = new URL(value);
+  url.hash = "";
+  if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/, "");
+  return url.toString();
+}
+
 export function NewLinkForm() {
   const router = useRouter();
   const { databaseFolders, addDatabaseLink } = useFolders();
@@ -35,6 +42,24 @@ export function NewLinkForm() {
 
       const folderId = String(form.get("folder"));
       const supabase = createClient();
+      const { data: existingLinks, error: duplicateCheckError } = await supabase
+        .from("links")
+        .select("url")
+        .eq("folder_id", folderId);
+
+      if (duplicateCheckError) throw duplicateCheckError;
+
+      const normalizedUrl = normalizeUrlForDuplicateCheck(data.url);
+      const isDuplicate = existingLinks.some((link) => {
+        try {
+          return normalizeUrlForDuplicateCheck(link.url) === normalizedUrl;
+        } catch {
+          return link.url === data.url;
+        }
+      });
+
+      if (isDuplicate) throw new Error("이 폴더에 이미 저장된 링크입니다.");
+
       const { data: insertedLink, error: insertError } = await supabase
         .from("links")
         .insert({
