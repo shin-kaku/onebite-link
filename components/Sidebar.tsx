@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { bookmarks, folders } from "@/data/bookmarks";
 import { createClient } from "@/utils/supabase/client";
-import { FolderIcon, GridIcon, LogoutIcon, PencilIcon, PrivateIcon, PublicIcon, TrashIcon } from "./icons";
+import { FolderIcon, GridIcon, LogoutIcon, PencilIcon, PrivateIcon, PublicIcon, SearchIcon, TrashIcon } from "./icons";
 import { useFolders } from "./FolderProvider";
 
 export function Sidebar({ active = true, activeFolderId }: { active?: boolean; activeFolderId?: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
-  const { customFolders, databaseFolders, databaseLinks, isMaster, deletedFolderIds, renamedFolders, savedBookmarks, deletedBookmarkKeys, bookmarkOverrides, openFolderModal, requestDeleteFolder, requestEditFolder, toggleFolderVisibility } = useFolders();
+  const { customFolders, databaseFolders, databaseLinks, isMaster, searchQuery, setSearchQuery, deletedFolderIds, renamedFolders, savedBookmarks, deletedBookmarkKeys, bookmarkOverrides, openFolderModal, requestDeleteFolder, requestEditFolder, toggleFolderVisibility } = useFolders();
   const visibleFolders = folders.filter((folder) => !deletedFolderIds.includes(folder.id));
 
   const handleSignOut = async () => {
@@ -39,6 +40,11 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
     }
   };
 
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (pathname !== "/") router.push("/");
+  };
+
   return (
     <aside className="mobile-scroll border-b border-[var(--border)] px-4 py-3 md:flex md:min-h-[calc(100vh-64px)] md:w-72 md:flex-col md:justify-between md:border-r md:border-b-0 md:px-4 md:py-8">
       {signOutError ? <div className="fixed top-5 left-1/2 z-50 w-[calc(100%-32px)] max-w-[440px] -translate-x-1/2 rounded-lg border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-center text-[14px] font-medium text-[var(--error)]" role="alert" aria-live="assertive">{signOutError}</div> : null}
@@ -46,6 +52,11 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
         <Link className={`nav-hover flex h-10 items-center gap-2.5 rounded-md px-3 text-[14px] font-medium ${active ? "nav-active" : "text-[var(--text-sub)]"}`} href="/#all" aria-current={active ? "page" : undefined}>
           <GridIcon className="size-[18px]"/><span>전체</span><span className="ml-auto hidden text-xs opacity-60 md:inline">{bookmarks.filter((bookmark) => !deletedBookmarkKeys.includes(bookmark.url)).length + savedBookmarks.length + databaseLinks.length}</span>
         </Link>
+        <label className="relative mt-2 hidden md:block">
+          <span className="sr-only">링크 검색</span>
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-[var(--text-sub)]" />
+          <input className="h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] pr-3 pl-9 text-[14px] text-[var(--text)] transition-colors" type="search" value={searchQuery} onChange={(event) => handleSearch(event.target.value)} placeholder="링크 검색" autoComplete="off" />
+        </label>
         <div className="mt-7 mb-2 hidden items-center justify-between px-3 text-[11px] font-semibold tracking-[0.08em] text-[var(--text-sub)] md:flex"><span>폴더</span><button className="secondary-hover grid size-6 cursor-pointer place-items-center rounded text-base" type="button" aria-label="새 폴더 추가" onClick={openFolderModal}>+</button></div>
         <ul className="flex gap-1.5 md:grid">{visibleFolders.map((folder) => {
           const count = bookmarks.filter((bookmark) => (bookmarkOverrides[bookmark.url]?.folderId ?? bookmark.folderId) === folder.id && !deletedBookmarkKeys.includes(bookmark.url)).length + savedBookmarks.filter((bookmark) => bookmark.folderId === folder.id).length;

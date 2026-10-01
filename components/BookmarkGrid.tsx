@@ -71,12 +71,24 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
 }
 
 export function BookmarkGrid({ items = bookmarks, folderId }: { items?: readonly DefaultBookmark[]; folderId?: string }) {
-  const { savedBookmarks, databaseLinks, deletedBookmarkKeys, bookmarkOverrides } = useFolders();
+  const { customFolders, databaseFolders, savedBookmarks, databaseLinks, deletedBookmarkKeys, renamedFolders, bookmarkOverrides, searchQuery } = useFolders();
   const addedItems = folderId ? savedBookmarks.filter((bookmark) => bookmark.folderId === folderId) : savedBookmarks;
   const databaseItems = folderId ? databaseLinks.filter((bookmark) => bookmark.folderId === folderId) : databaseLinks;
   const sourceItems = folderId ? bookmarks.filter((bookmark) => (bookmarkOverrides[bookmark.url]?.folderId ?? bookmark.folderId) === folderId) : items;
   const visibleItems = sourceItems.filter((bookmark) => !deletedBookmarkKeys.includes(bookmark.url));
   const allItems: BookmarkItem[] = [...visibleItems, ...addedItems, ...databaseItems];
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase("ko");
+  const filteredItems = normalizedQuery ? allItems.filter((bookmark) => {
+    const isRichPreview = isDatabaseLink(bookmark) || isSavedBookmark(bookmark);
+    const override = isRichPreview ? undefined : bookmarkOverrides[bookmark.url];
+    const folderId = override?.folderId ?? bookmark.folderId;
+    const defaultFolder = folders.find((folder) => folder.id === folderId);
+    const folderName = databaseFolders.find((folder) => folder.id === folderId)?.name
+      ?? customFolders.find((folder) => folder.id === folderId)?.name
+      ?? (defaultFolder ? renamedFolders[defaultFolder.id] ?? defaultFolder.name : "");
+    return [override?.title ?? bookmark.title, override?.description ?? bookmark.description, bookmark.url, folderName]
+      .some((value) => value.toLocaleLowerCase("ko").includes(normalizedQuery));
+  }) : allItems;
 
-  return <section className="grid grid-cols-1 gap-3 sm:grid-cols-2" id="all" aria-label="저장한 링크">{allItems.map((bookmark) => <BookmarkCard key={isDatabaseLink(bookmark) ? `database-${bookmark.id}` : isSavedBookmark(bookmark) ? bookmark.id : bookmark.url} bookmark={bookmark}/>)}</section>;
+  return <section className="grid grid-cols-1 gap-3 sm:grid-cols-2" id="all" aria-label="저장한 링크">{filteredItems.map((bookmark) => <BookmarkCard key={isDatabaseLink(bookmark) ? `database-${bookmark.id}` : isSavedBookmark(bookmark) ? bookmark.id : bookmark.url} bookmark={bookmark}/>)}{normalizedQuery && filteredItems.length === 0 && <div className="col-span-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-5 py-12 text-center"><p className="text-[14px] font-medium">검색 결과가 없습니다.</p><p className="mt-1 text-xs text-[var(--text-sub)]">다른 검색어를 입력해 보세요.</p></div>}</section>;
 }

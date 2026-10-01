@@ -19,6 +19,8 @@ type FolderContextValue = FolderState & {
   databaseFolders: readonly DatabaseFolder[];
   databaseLinks: readonly DatabaseLink[];
   isMaster: boolean;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   addDatabaseLink: (link: DatabaseLink) => void;
   toggleFolderVisibility: (folder: DatabaseFolder) => Promise<void>;
   toggleLinkVisibility: (link: DatabaseLink) => Promise<void>;
@@ -79,6 +81,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
   const [databaseFolders, setDatabaseFolders] = useState(initialDatabaseFolders);
   const [databaseLinks, setDatabaseLinks] = useState(initialDatabaseLinks);
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentUserId, setCurrentUserId] = useState(initialUserId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
@@ -419,7 +422,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   };
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, isMaster: currentUserId === MASTER_USER_ID, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), toggleFolderVisibility, toggleLinkVisibility, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, isMaster: currentUserId === MASTER_USER_ID, searchQuery, setSearchQuery, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), toggleFolderVisibility, toggleLinkVisibility, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
