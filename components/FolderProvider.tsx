@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, useSyncExternal
 import { folders } from "@/data/bookmarks";
 import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { createClient } from "@/utils/supabase/client";
+import { getCurrentUserProfile, type AppRole, type CurrentUserProfile } from "@/utils/supabase/user";
 
 type CustomFolder = { id: string; name: string };
 export type DatabaseFolder = { id: string; name: string; isReadOnly: boolean; isPublic: boolean };
@@ -18,6 +19,8 @@ type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: r
 type FolderContextValue = FolderState & {
   databaseFolders: readonly DatabaseFolder[];
   databaseLinks: readonly DatabaseLink[];
+  currentUser: CurrentUserProfile | null;
+  currentRole: AppRole;
   isMaster: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -77,12 +80,14 @@ function saveState(state: FolderState) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
-export function FolderProvider({ children, initialUserId, initialDatabaseFolders, initialDatabaseLinks }: { children: ReactNode; initialUserId: string | null; initialDatabaseFolders: DatabaseFolder[]; initialDatabaseLinks: DatabaseLink[] }) {
+export function FolderProvider({ children, initialUserId, initialCurrentUser, initialRole, initialDatabaseFolders, initialDatabaseLinks }: { children: ReactNode; initialUserId: string | null; initialCurrentUser: CurrentUserProfile | null; initialRole: AppRole; initialDatabaseFolders: DatabaseFolder[]; initialDatabaseLinks: DatabaseLink[] }) {
   const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
   const [databaseFolders, setDatabaseFolders] = useState(initialDatabaseFolders);
   const [databaseLinks, setDatabaseLinks] = useState(initialDatabaseLinks);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentUserId, setCurrentUserId] = useState(initialUserId);
+  const [currentUser, setCurrentUser] = useState(initialCurrentUser);
+  const [currentRole, setCurrentRole] = useState(initialRole);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -110,12 +115,13 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
     async function reloadDatabaseData(userId: string | null, version: number) {
       if (!userId) return;
 
-      const [{ data: foldersData, error: foldersError }, { data: linksData, error: linksError }] = await Promise.all([
+      const [{ data: foldersData, error: foldersError }, { data: linksData, error: linksError }, { data: roleData, error: roleError }] = await Promise.all([
         supabase.from("folders").select("id, nam, user_id, is_public").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
         supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id, user_id, is_public").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
       ]);
 
-      if (version !== requestVersion || foldersError || linksError) return;
+      if (version !== requestVersion || foldersError || linksError || roleError) return;
 
       setDatabaseFolders((foldersData ?? []).map((folder) => ({
         id: String(folder.id),
@@ -134,14 +140,17 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
         isReadOnly: link.user_id !== userId,
         isPublic: link.is_public,
       })));
+      setCurrentRole(roleData?.role ?? (userId === MASTER_USER_ID ? "master" : "student"));
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextUserId = session?.user.id ?? null;
+      setCurrentUser(getCurrentUserProfile(session?.user ?? null));
       if (nextUserId === currentUserIdRef.current) return;
 
       currentUserIdRef.current = nextUserId;
       setCurrentUserId(nextUserId);
+      if (!nextUserId) setCurrentRole("student");
       const version = ++requestVersion;
       setDatabaseFolders([]);
       setDatabaseLinks([]);
@@ -422,7 +431,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   };
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, isMaster: currentUserId === MASTER_USER_ID, searchQuery, setSearchQuery, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), toggleFolderVisibility, toggleLinkVisibility, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, currentUser, currentRole, isMaster: currentUserId === MASTER_USER_ID, searchQuery, setSearchQuery, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), toggleFolderVisibility, toggleLinkVisibility, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
