@@ -22,8 +22,25 @@ export function AuthForm({ mode }: AuthFormProps) {
     ? Boolean(email.trim() && password && passwordConfirm) && !isSubmitting
     : Boolean(email.trim() && password) && !isSubmitting;
 
-  const getSignupErrorMessage = (message: string) => {
+  const getAuthErrorMessage = (message: string) => {
     const normalizedMessage = message.toLowerCase();
+
+    if (!isSignup) {
+      if (normalizedMessage.includes("invalid login credentials")) {
+        return "이메일 또는 비밀번호가 올바르지 않습니다.";
+      }
+      if (normalizedMessage.includes("email not confirmed")) {
+        return "이메일 인증을 완료한 후 로그인해 주세요.";
+      }
+      if (normalizedMessage.includes("invalid email")) {
+        return "올바른 이메일 주소를 입력해 주세요.";
+      }
+      if (normalizedMessage.includes("rate limit") || normalizedMessage.includes("too many requests")) {
+        return "로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+      }
+
+      return "로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    }
 
     if (normalizedMessage.includes("already registered") || normalizedMessage.includes("already been registered")) {
       return "이미 가입된 이메일입니다.";
@@ -44,11 +61,11 @@ export function AuthForm({ mode }: AuthFormProps) {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isSignup || !canSubmit) return;
+    if (!canSubmit) return;
 
     setErrorMessage("");
 
-    if (password !== passwordConfirm) {
+    if (isSignup && password !== passwordConfirm) {
       setErrorMessage("비밀번호가 일치하지 않습니다.");
       return;
     }
@@ -57,20 +74,22 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-      });
+      const credentials = { email: email.trim(), password };
+      const { error } = isSignup
+        ? await supabase.auth.signUp(credentials)
+        : await supabase.auth.signInWithPassword(credentials);
 
       if (error) {
-        setErrorMessage(getSignupErrorMessage(error.message));
+        setErrorMessage(getAuthErrorMessage(error.message));
         return;
       }
 
       router.push("/");
       router.refresh();
     } catch {
-      setErrorMessage("회원가입에 실패했습니다. 인터넷 연결을 확인해 주세요.");
+      setErrorMessage(
+        `${isSignup ? "회원가입" : "로그인"}에 실패했습니다. 인터넷 연결을 확인해 주세요.`,
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -175,7 +194,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               type="submit"
               disabled={!canSubmit}
             >
-              {isSignup ? (isSubmitting ? "가입 중..." : "회원가입") : "로그인"}
+              {isSubmitting ? (isSignup ? "가입 중..." : "로그인 중...") : (isSignup ? "회원가입" : "로그인")}
             </button>
           </form>
 
