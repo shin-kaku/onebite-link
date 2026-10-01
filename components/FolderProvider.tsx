@@ -2,17 +2,18 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { folders } from "@/data/bookmarks";
+import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { createClient } from "@/utils/supabase/client";
 
 type CustomFolder = { id: string; name: string };
-export type DatabaseFolder = { id: string; name: string };
-export type DatabaseLink = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string; source: "database" };
+export type DatabaseFolder = { id: string; name: string; isReadOnly: boolean };
+export type DatabaseLink = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string; source: "database"; isReadOnly: boolean };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
-type FolderToDelete = CustomFolder & { isCustom: boolean; isDatabase?: boolean };
+type FolderToDelete = CustomFolder & { isCustom: boolean; isDatabase?: boolean; isReadOnly?: boolean };
 type FolderToEdit = FolderToDelete & { isDatabase?: boolean };
-type BookmarkToDelete = { key: string; title: string; isSaved: boolean; isDatabase?: boolean };
+type BookmarkToDelete = { key: string; title: string; isSaved: boolean; isDatabase?: boolean; isReadOnly?: boolean };
 export type BookmarkOverride = { title: string; description: string; folderId: string };
-type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean; isDatabase?: boolean };
+type BookmarkToEdit = BookmarkOverride & { key: string; isSaved: boolean; isDatabase?: boolean; isReadOnly?: boolean };
 type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: readonly string[]; renamedFolders: Readonly<Record<string, string>>; savedBookmarks: readonly SavedBookmark[]; deletedBookmarkKeys: readonly string[]; bookmarkOverrides: Readonly<Record<string, BookmarkOverride>> };
 type FolderContextValue = FolderState & {
   databaseFolders: readonly DatabaseFolder[];
@@ -103,8 +104,8 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
       if (!userId) return;
 
       const [{ data: foldersData, error: foldersError }, { data: linksData, error: linksError }] = await Promise.all([
-        supabase.from("folders").select("id, nam").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
-        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("folders").select("id, nam, user_id").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id, user_id").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
       ]);
 
       if (version !== requestVersion || foldersError || linksError) return;
@@ -112,6 +113,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
       setDatabaseFolders((foldersData ?? []).map((folder) => ({
         id: String(folder.id),
         name: folder.nam,
+        isReadOnly: folder.user_id !== userId,
       })));
       setDatabaseLinks((linksData ?? []).map((link) => ({
         id: String(link.id),
@@ -121,6 +123,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
         url: link.url,
         folderId: link.folder_id === null ? "" : String(link.folder_id),
         source: "database" as const,
+        isReadOnly: link.user_id !== userId,
       })));
     }
 
@@ -183,7 +186,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
 
       if (error) throw error;
 
-      setDatabaseFolders((current) => [...current, { id: String(data.id), name: data.nam }]);
+      setDatabaseFolders((current) => [...current, { id: String(data.id), name: data.nam, isReadOnly: false }]);
       formElement.reset();
       setIsCreateOpen(false);
     } catch {
@@ -195,7 +198,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   }
 
   async function deleteFolder() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleteTarget.isReadOnly) return;
 
     if (deleteTarget.isDatabase) {
       setIsDeletingFolder(true);
@@ -228,7 +231,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
 
   async function editFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editTarget) return;
+    if (!editTarget || editTarget.isReadOnly) return;
     const form = new FormData(event.currentTarget);
     const name = String(form.get("folderName") ?? "").trim();
     if (!name) return;
@@ -267,7 +270,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   }
 
   async function deleteBookmark() {
-    if (!bookmarkDeleteTarget) return;
+    if (!bookmarkDeleteTarget || bookmarkDeleteTarget.isReadOnly) return;
 
     if (bookmarkDeleteTarget.isDatabase) {
       setIsDeletingBookmark(true);
@@ -302,7 +305,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
 
   async function editBookmark(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!bookmarkEditTarget) return;
+    if (!bookmarkEditTarget || bookmarkEditTarget.isReadOnly) return;
     const form = new FormData(event.currentTarget);
     const updated: BookmarkOverride = {
       folderId: String(form.get("folder")),

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { FolderProvider } from "@/components/FolderProvider";
+import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { createClient } from "@/utils/supabase/server";
 import "./globals.css";
 
@@ -15,14 +16,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const userId = user?.id ?? null;
   const [{ data: foldersData }, { data: linksData }] = userId
     ? await Promise.all([
-        supabase.from("folders").select("id, nam").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
-        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("folders").select("id, nam, user_id").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id, user_id").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
       ])
     : [{ data: [] }, { data: [] }];
 
   const databaseFolders = (foldersData ?? []).map((folder) => ({
     id: String(folder.id),
     name: folder.nam,
+    isReadOnly: folder.user_id !== userId,
   }));
   const databaseLinks = (linksData ?? []).map((link) => ({
     id: String(link.id),
@@ -32,6 +34,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     url: link.url,
     folderId: link.folder_id === null ? "" : String(link.folder_id),
     source: "database" as const,
+    isReadOnly: link.user_id !== userId,
   }));
 
   return (

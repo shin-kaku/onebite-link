@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { FolderTitle } from "@/components/FolderTitle";
 import { BookmarkCount } from "@/components/BookmarkCount";
 import { createClient } from "@/utils/supabase/server";
+import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { cookies } from "next/headers";
 import { folders, getFolder, getFolderBookmarks, type FolderId } from "@/data/bookmarks";
 
@@ -27,7 +28,7 @@ export default async function FolderPage({ params }: PageProps<"/folder/[folderI
       .from("folders")
       .select("nam")
       .eq("id", folderId)
-      .eq("user_id", user.id)
+      .in("user_id", [user.id, MASTER_USER_ID])
       .maybeSingle();
 
     if (!databaseFolder) notFound();
