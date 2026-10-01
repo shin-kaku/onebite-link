@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { AuthForm } from "@/components/AuthForm";
+import { createPageMetadata } from "@/utils/metadata";
 
-export const metadata: Metadata = {
-  title: "로그인 | 타이포그래피 기초 북마크",
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "로그인",
+  description: "타이포그래피 기초 북마크에 로그인하세요.",
+  noIndex: true,
+});
 
 export default async function LoginPage({
   searchParams,

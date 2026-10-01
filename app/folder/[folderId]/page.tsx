@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { BookmarkGrid } from "@/components/BookmarkGrid";
@@ -8,9 +9,42 @@ import { createClient } from "@/utils/supabase/server";
 import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { cookies } from "next/headers";
 import { folders, getFolder, getFolderBookmarks, type FolderId } from "@/data/bookmarks";
+import { createPageMetadata } from "@/utils/metadata";
 
 export function generateStaticParams() {
   return folders.map((folder) => ({ folderId: folder.id }));
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/folder/[folderId]">): Promise<Metadata> {
+  const { folderId } = await params;
+  const staticFolder = getFolder(folderId);
+  let folderName = staticFolder?.name;
+
+  if (!folderName) {
+    const supabase = createClient(await cookies());
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: databaseFolder } = await supabase
+        .from("folders")
+        .select("nam")
+        .eq("id", folderId)
+        .in("user_id", [user.id, MASTER_USER_ID])
+        .maybeSingle();
+
+      folderName = databaseFolder?.nam;
+    }
+  }
+
+  const title = folderName ?? "북마크 폴더";
+
+  return createPageMetadata({
+    title,
+    description: `${title} 폴더에 모아둔 링크를 둘러보세요.`,
+    noIndex: !staticFolder,
+  });
 }
 
 export default async function FolderPage({ params }: PageProps<"/folder/[folderId]">) {

@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import { AppHeader } from "@/components/AppHeader";
 import { NewLinkForm } from "@/components/NewLinkForm";
 import { Sidebar } from "@/components/Sidebar";
+import { createPageMetadata } from "@/utils/metadata";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "새 링크 추가",
+  description: "새로운 링크를 북마크 컬렉션에 저장하세요.",
+  noIndex: true,
+});
 
 export default function NewLinkPage() {
   return (

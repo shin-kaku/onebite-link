@@ -4,11 +4,29 @@ import { FolderProvider } from "@/components/FolderProvider";
 import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserProfile, type AppRole } from "@/utils/supabase/user";
+import { getMetadataBase, SITE_DESCRIPTION, SITE_NAME } from "@/utils/metadata";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "타이포그래피 기초 북마크",
-  description: "좋아하는 링크를 한입에 모아보세요.",
+  metadataBase: getMetadataBase(),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+    locale: "ko_KR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

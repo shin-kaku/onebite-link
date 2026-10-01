@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { PasswordResetForm } from "@/components/PasswordResetForm";
+import { createPageMetadata } from "@/utils/metadata";
 
-export const metadata: Metadata = {
-  title: "비밀번호 찾기 | 타이포그래피 기초 북마크",
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "비밀번호 찾기",
+  description: "비밀번호를 재설정할 수 있는 링크를 요청하세요.",
+  noIndex: true,
+});
 
 export default async function ForgotPasswordPage({
   searchParams,

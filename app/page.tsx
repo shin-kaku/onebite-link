@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import { AppHeader } from "@/components/AppHeader";
 import { BookmarkGrid } from "@/components/BookmarkGrid";
 import { Sidebar } from "@/components/Sidebar";
 import { BookmarkCount } from "@/components/BookmarkCount";
+import { createPageMetadata } from "@/utils/metadata";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "모든 링크",
+  description: "저장한 타이포그래피 자료와 즐겨 찾는 링크를 한곳에서 둘러보세요.",
+});
 
 export default function Home() {
   return (

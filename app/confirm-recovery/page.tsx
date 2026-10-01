@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { RecoveryConfirmation } from "@/components/RecoveryConfirmation";
+import { createPageMetadata } from "@/utils/metadata";
 
 export const metadata: Metadata = {
-  title: "비밀번호 재설정 확인 | 타이포그래피 기초 북마크",
+  ...createPageMetadata({
+    title: "비밀번호 재설정 확인",
+    description: "비밀번호 재설정 요청을 안전하게 확인합니다.",
+    noIndex: true,
+  }),
   referrer: "no-referrer",
 };
 
