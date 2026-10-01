@@ -16,8 +16,8 @@ export default function Home() {
       <AppHeader />
       <div className="flex flex-col md:flex-row">
         <Sidebar />
-        <main className="order-4 w-full px-5 py-10 md:order-none md:px-10 md:py-14">
-          <div className="mx-auto max-w-[720px]">
+        <main className="order-4 w-full px-5 py-10 md:order-none md:min-w-0 md:flex-1 md:px-10 md:py-14">
+          <div className="w-full">
           <div className="mb-7 flex items-end justify-between">
             <div><p className="mb-2 text-xs font-semibold tracking-[0.1em] text-[var(--accent)]">내 컬렉션</p><h1 className="text-[30px] font-bold leading-[1.2] tracking-[-0.04em]">모든 링크</h1></div>
             <span className="text-[14px] text-[var(--text-sub)]"><BookmarkCount /></span>
