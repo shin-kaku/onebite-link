@@ -8,12 +8,10 @@ import { BookmarkCount } from "@/components/BookmarkCount";
 import { createClient } from "@/utils/supabase/server";
 import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { cookies } from "next/headers";
-import { folders, getFolder, getFolderBookmarks, type FolderId } from "@/data/bookmarks";
+import { getFolder, getFolderBookmarks, type FolderId } from "@/data/bookmarks";
 import { createPageMetadata } from "@/utils/metadata";
 
-export function generateStaticParams() {
-  return folders.map((folder) => ({ folderId: folder.id }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,

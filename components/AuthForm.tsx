@@ -90,10 +90,13 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
     try {
       const supabase = createClient();
       const credentials = { email: email.trim(), password };
-      const { error } = isSignup
+      const { data, error } = isSignup
         ? await supabase.auth.signUp({
             ...credentials,
-            options: { data: { display_name: displayName.trim() } },
+            options: {
+              data: { display_name: displayName.trim() },
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
           })
         : await supabase.auth.signInWithPassword(credentials);
 
@@ -102,8 +105,17 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      if (!isSignup && !data.session) {
+        setErrorMessage("로그인 세션을 만들지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+
+      if (data.session) {
+        window.location.replace("/");
+        return;
+      }
+
+      router.replace("/login");
     } catch {
       setErrorMessage(
         `${isSignup ? "회원가입" : "로그인"}에 실패했습니다. 인터넷 연결을 확인해 주세요.`,
@@ -124,7 +136,7 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "kakao",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/`,
+          redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
