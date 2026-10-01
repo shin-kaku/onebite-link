@@ -40,6 +40,8 @@ button, input, select { font: inherit; }
 .primary-hover:hover { background: var(--accent-hover); }
 .auth-logo-hover:hover { background: var(--hover-bg); }
 .auth-link-hover:hover { color: var(--accent-hover); text-decoration: underline; }
+.kakao-login-hover { transition: filter .15s ease; }
+.kakao-login-hover:hover:not(:disabled) { filter: brightness(.96); }
 .logout-hover:hover:not(:disabled) { border-color: var(--error); background: var(--error-bg); color: var(--error); }
 .delete-hover:hover { background: #cf4141; }
 .external-hover:hover { color: var(--accent); }

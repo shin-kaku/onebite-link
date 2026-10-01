@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
@@ -8,16 +9,18 @@ import { TypographyLogoIcon } from "./icons";
 
 type AuthFormProps = {
   mode: "login" | "signup";
+  initialError?: string;
 };
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
   const isSignup = mode === "signup";
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState(initialError);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isKakaoSubmitting, setIsKakaoSubmitting] = useState(false);
   const canSubmit = isSignup
     ? Boolean(email.trim() && password && passwordConfirm) && !isSubmitting
     : Boolean(email.trim() && password) && !isSubmitting;
@@ -92,6 +95,31 @@ export function AuthForm({ mode }: AuthFormProps) {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleKakaoLogin = async () => {
+    if (isKakaoSubmitting) return;
+
+    setErrorMessage("");
+    setIsKakaoSubmitting(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "kakao",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/`,
+        },
+      });
+
+      if (error) {
+        setErrorMessage("카카오 로그인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        setIsKakaoSubmitting(false);
+      }
+    } catch {
+      setErrorMessage("카카오 로그인을 시작하지 못했습니다. 인터넷 연결을 확인해 주세요.");
+      setIsKakaoSubmitting(false);
     }
   };
 
@@ -197,6 +225,25 @@ export function AuthForm({ mode }: AuthFormProps) {
               {isSubmitting ? (isSignup ? "가입 중..." : "로그인 중...") : (isSignup ? "회원가입" : "로그인")}
             </button>
           </form>
+
+          {!isSignup ? (
+            <button
+              className="kakao-login-hover mt-3 block w-full cursor-pointer overflow-hidden rounded-md disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={handleKakaoLogin}
+              disabled={isKakaoSubmitting || isSubmitting}
+              aria-label={isKakaoSubmitting ? "카카오 로그인 진행 중" : "카카오 로그인"}
+            >
+              <Image
+                className="h-auto w-full"
+                src="/kakao_login_large_wide.png"
+                alt=""
+                width={600}
+                height={90}
+                priority
+              />
+            </button>
+          ) : null}
 
           {!isSignup ? (
             <p className="mt-6 text-center text-[14px]">

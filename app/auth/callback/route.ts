@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const requestedPath = requestUrl.searchParams.get("next");
   const nextPath = requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
     ? requestedPath
-    : "/reset-password";
+    : "/";
 
   if (code) {
     const supabase = createClient(await cookies());
@@ -23,5 +23,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(new URL("/forgot-password?error=invalid-link", requestUrl.origin));
+  return NextResponse.redirect(new URL("/login?error=oauth", requestUrl.origin));
 }
