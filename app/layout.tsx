@@ -4,7 +4,7 @@ import { FolderProvider } from "@/components/FolderProvider";
 import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserProfile, type AppRole } from "@/utils/supabase/user";
-import { getMetadataBase, SITE_DESCRIPTION, SITE_NAME } from "@/utils/metadata";
+import { getMetadataBase, SITE_DESCRIPTION, SITE_NAME, SOCIAL_IMAGE } from "@/utils/metadata";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,11 +21,13 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     locale: "ko_KR",
     type: "website",
+    images: [SOCIAL_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
+    images: [SOCIAL_IMAGE.url],
   },
 };
 

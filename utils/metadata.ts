@@ -2,6 +2,12 @@ import type { Metadata } from "next";
 
 export const SITE_NAME = "타이포그래피 기초 북마크";
 export const SITE_DESCRIPTION = "좋아하는 링크를 한입에 모아보세요.";
+export const SOCIAL_IMAGE = {
+  url: "/thumbnail.png",
+  width: 1730,
+  height: 909,
+  alt: `${SITE_NAME} 소개 이미지`,
+} as const;
 
 export function getMetadataBase(): URL {
   const siteUrl =
@@ -34,11 +40,13 @@ export function createPageMetadata({
       siteName: SITE_NAME,
       locale: "ko_KR",
       type: "website",
+      images: [SOCIAL_IMAGE],
     },
     twitter: {
       card: "summary_large_image",
       title: `${title} | ${SITE_NAME}`,
       description,
+      images: [SOCIAL_IMAGE.url],
     },
     ...(noIndex ? { robots: { index: false, follow: false } } : {}),
   };
