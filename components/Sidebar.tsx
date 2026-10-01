@@ -40,7 +40,7 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
   };
 
   return (
-    <aside className="mobile-scroll border-b border-[var(--border)] px-4 py-3 md:flex md:min-h-[calc(100vh-64px)] md:w-60 md:flex-col md:justify-between md:border-r md:border-b-0 md:px-4 md:py-8">
+    <aside className="mobile-scroll border-b border-[var(--border)] px-4 py-3 md:flex md:min-h-[calc(100vh-64px)] md:w-72 md:flex-col md:justify-between md:border-r md:border-b-0 md:px-4 md:py-8">
       {signOutError ? <div className="fixed top-5 left-1/2 z-50 w-[calc(100%-32px)] max-w-[440px] -translate-x-1/2 rounded-lg border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-center text-[14px] font-medium text-[var(--error)]" role="alert" aria-live="assertive">{signOutError}</div> : null}
       <nav className="flex min-w-max gap-1.5 md:block md:min-w-0" aria-label="링크 폴더">
         <Link className={`nav-hover flex h-10 items-center gap-2.5 rounded-md px-3 text-[14px] font-medium ${active ? "nav-active" : "text-[var(--text-sub)]"}`} href="/#all" aria-current={active ? "page" : undefined}>
