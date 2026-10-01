@@ -47,25 +47,25 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
   };
 
   return (
-    <aside className="mobile-scroll border-b border-[var(--border)] px-4 py-3 md:flex md:min-h-[calc(100vh-64px)] md:w-72 md:flex-col md:justify-between md:border-r md:border-b-0 md:px-4 md:py-8">
+    <aside className="contents md:flex md:min-h-[calc(100vh-64px)] md:w-72 md:flex-col md:justify-between md:border-r md:border-[var(--border)] md:px-4 md:py-8">
       {signOutError ? <div className="fixed top-5 left-1/2 z-50 w-[calc(100%-32px)] max-w-[440px] -translate-x-1/2 rounded-lg border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-center text-[14px] font-medium text-[var(--error)]" role="alert" aria-live="assertive">{signOutError}</div> : null}
-      <nav className="flex min-w-max gap-1.5 md:block md:min-w-0" aria-label="링크 폴더">
+      <nav className="contents md:block md:min-w-0" aria-label="링크 폴더">
         {currentUser && <section className="hidden min-w-0 px-3 pb-5 md:block" aria-label="사용자 정보">
           <p className="truncate text-[15px] font-semibold tracking-[-0.015em]">안녕하세요. <span className="text-[var(--accent)]">{currentUser.displayName}</span>님!</p>
           <p className="mt-1 truncate text-xs text-[var(--text-sub)]" title={currentUser.email}>{currentUser.email}</p>
           <p className="mt-2 text-[11px] font-semibold text-[var(--text-sub)]">{ROLE_LABELS[currentRole]}</p>
         </section>}
-        <section className="border-y border-[var(--border)] py-5 md:block" aria-label="전체 링크와 검색">
-          <Link className={`nav-hover flex h-10 items-center gap-2.5 rounded-md px-3 text-[14px] font-medium ${active ? "nav-active" : "text-[var(--text-sub)]"}`} href="/#all" aria-current={active ? "page" : undefined}>
+        <section className="contents md:block md:border-y md:border-[var(--border)] md:py-5" aria-label="전체 링크와 검색">
+          <Link className={`nav-hover order-2 mx-4 mt-2 flex h-10 items-center gap-2.5 rounded-md px-3 text-[14px] font-medium md:order-none md:mx-0 md:mt-0 ${active ? "nav-active" : "text-[var(--text-sub)]"}`} href="/#all" aria-current={active ? "page" : undefined}>
             <GridIcon className="size-[18px]"/><span>전체</span><span className="ml-auto hidden text-xs opacity-60 md:inline">{bookmarks.filter((bookmark) => !deletedBookmarkKeys.includes(bookmark.url)).length + savedBookmarks.length + databaseLinks.length}</span>
           </Link>
-          <label className="relative mt-2 hidden md:block">
+          <label className="sticky top-16 z-10 order-1 block border-y border-[var(--border)] bg-[var(--background)] px-4 py-3 md:relative md:top-auto md:z-auto md:order-none md:mt-2 md:border-0 md:bg-transparent md:px-0 md:py-0">
             <span className="sr-only">링크 검색</span>
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-[var(--text-sub)]" />
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-7 size-[17px] -translate-y-1/2 text-[var(--text-sub)] md:left-3" />
             <input className="h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] pr-3 pl-9 text-[14px] text-[var(--text)] transition-colors" type="search" value={searchQuery} onChange={(event) => handleSearch(event.target.value)} placeholder="링크 검색" autoComplete="off" />
           </label>
         </section>
-        <section className="hidden pt-5 md:block" aria-label="폴더 목록">
+        <section className="order-3 border-b border-[var(--border)] px-4 py-5 md:order-none md:border-b-0 md:px-0 md:pb-0" aria-label="폴더 목록">
         <div className="mb-2 flex items-center justify-between px-3 text-[11px] font-semibold tracking-[0.08em] text-[var(--text-sub)]"><span>폴더</span><button className="secondary-hover grid size-6 cursor-pointer place-items-center rounded text-base" type="button" aria-label="새 폴더 추가" onClick={openFolderModal}>+</button></div>
         <ul className="grid gap-0.5">{visibleFolders.map((folder) => {
           const count = bookmarks.filter((bookmark) => (bookmarkOverrides[bookmark.url]?.folderId ?? bookmark.folderId) === folder.id && !deletedBookmarkKeys.includes(bookmark.url)).length + savedBookmarks.filter((bookmark) => bookmark.folderId === folder.id).length;
@@ -78,7 +78,12 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
         </ul>
         </section>
       </nav>
-      <div className="mt-3 grid gap-3 md:mt-0">
+      <div className="order-first mx-4 mt-5 mb-8 grid gap-3 md:order-none md:mx-0 md:mt-0 md:mb-0">
+        {currentUser && <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 md:hidden" aria-label="사용자 정보">
+          <p className="truncate text-[15px] font-semibold tracking-[-0.015em]">안녕하세요. <span className="text-[var(--accent)]">{currentUser.displayName}</span>님!</p>
+          <p className="mt-1 truncate text-xs text-[var(--text-sub)]" title={currentUser.email}>{currentUser.email}</p>
+          <p className="mt-2 text-[11px] font-semibold text-[var(--text-sub)]">{ROLE_LABELS[currentRole]}</p>
+        </section>}
         <div className="hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 md:block"><span className="text-[11px] font-semibold text-[var(--accent)]">TIP</span><p className="mt-2 text-xs leading-relaxed text-[var(--text-sub)]">폴더로 북마크를 정리하면,<br/>나중에 더 쉽게 찾을 수 있어요.</p></div>
         <button className="logout-hover flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-[14px] font-medium text-[var(--text-sub)] disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={handleSignOut} disabled={isSigningOut}>
           <LogoutIcon className="size-[18px]" />
