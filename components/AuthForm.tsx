@@ -198,7 +198,15 @@ export function AuthForm({ mode }: AuthFormProps) {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-[14px] text-[var(--text-sub)]">
+          {!isSignup ? (
+            <p className="mt-6 text-center text-[14px]">
+              <Link className="auth-link-hover font-semibold text-[var(--accent)]" href="/forgot-password">
+                비밀번호를 잊으셨나요?
+              </Link>
+            </p>
+          ) : null}
+
+          <p className={`${isSignup ? "mt-6" : "mt-3"} text-center text-[14px] text-[var(--text-sub)]`}>
             {isSignup ? "이미 계정이 있으신가요?" : "아직 계정이 없으신가요?"}{" "}
             <Link
               className="auth-link-hover font-semibold text-[var(--accent)]"
