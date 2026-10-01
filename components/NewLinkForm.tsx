@@ -58,6 +58,7 @@ export function NewLinkForm() {
         folderId: insertedLink.folder_id === null ? "" : String(insertedLink.folder_id),
         source: "database",
         isReadOnly: false,
+        isPublic: false,
       });
       router.push("/");
     } catch (caught) {

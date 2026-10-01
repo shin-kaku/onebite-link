@@ -61,6 +61,7 @@ button, input, select { font: inherit; }
 .bookmark-card:focus-within .bookmark-actions { opacity: 1; pointer-events: auto; }
 .bookmark-action-button:hover { background: var(--hover-bg); color: var(--text); }
 .bookmark-action-button:last-child:hover { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.bookmark-action-button:disabled { cursor: not-allowed; opacity: .4; }
 
 .site-react { background: #087ea4; }
 .site-nextjs { background: #262626; }

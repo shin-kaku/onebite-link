@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowIcon, PencilIcon, TrashIcon } from "./icons";
+import { ArrowIcon, PencilIcon, PrivateIcon, PublicIcon, TrashIcon } from "./icons";
 import { bookmarks, folders } from "@/data/bookmarks";
 import { useFolders, type DatabaseLink, type SavedBookmark } from "./FolderProvider";
 
@@ -16,7 +16,7 @@ function isSavedBookmark(bookmark: BookmarkItem): bookmark is SavedBookmark {
 }
 
 function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
-  const { customFolders, databaseFolders, renamedFolders, bookmarkOverrides, requestDeleteBookmark, requestEditBookmark } = useFolders();
+  const { customFolders, databaseFolders, isMaster, renamedFolders, bookmarkOverrides, requestDeleteBookmark, requestEditBookmark, toggleLinkVisibility } = useFolders();
   const isDatabase = isDatabaseLink(bookmark);
   const isReadOnly = isDatabase && bookmark.isReadOnly;
   const isSaved = isSavedBookmark(bookmark);
@@ -29,6 +29,7 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
   const defaultFolder = folders.find((item) => item.id === folderId);
   const customFolder = customFolders.find((item) => item.id === folderId);
   const databaseFolder = databaseFolders.find((item) => item.id === folderId);
+  const canPublish = Boolean(databaseFolder?.isPublic);
   const folderName = databaseFolder?.name ?? customFolder?.name ?? (defaultFolder ? renamedFolders[defaultFolder.id] ?? defaultFolder.name : "폴더 없음");
   const href = /^https?:\/\//i.test(bookmark.url) ? bookmark.url : `https://${bookmark.url}`;
   const displayUrl = bookmark.url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
@@ -37,6 +38,7 @@ function BookmarkCard({ bookmark }: { bookmark: BookmarkItem }) {
   return (
     <article className="bookmark-card card-hover relative flex min-h-52 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       {!isReadOnly && <span className="bookmark-actions absolute top-3 right-3 z-10">
+        {isDatabase && isMaster && <button className="bookmark-action-button" type="button" aria-label={`${title} 링크를 ${bookmark.isPublic ? "비공개" : "공개"}로 변경`} title={!bookmark.isPublic && !canPublish ? "폴더를 먼저 공개해 주세요" : bookmark.isPublic ? "비공개로 변경" : "공개로 변경"} disabled={!bookmark.isPublic && !canPublish} onClick={() => void toggleLinkVisibility(bookmark)}>{bookmark.isPublic ? <PublicIcon className="size-4"/> : <PrivateIcon className="size-4"/>}</button>}
         <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 수정`} onClick={() => requestEditBookmark({ key, title, description, folderId, isSaved, isDatabase, isReadOnly })}><PencilIcon className="size-4"/></button>
         <button className="bookmark-action-button" type="button" aria-label={`${title} 링크 삭제`} onClick={() => requestDeleteBookmark({ key, title, isSaved, isDatabase, isReadOnly })}><TrashIcon className="size-4"/></button>
       </span>}

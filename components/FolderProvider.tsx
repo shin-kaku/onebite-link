@@ -6,8 +6,8 @@ import { MASTER_USER_ID } from "@/utils/supabase/access";
 import { createClient } from "@/utils/supabase/client";
 
 type CustomFolder = { id: string; name: string };
-export type DatabaseFolder = { id: string; name: string; isReadOnly: boolean };
-export type DatabaseLink = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string; source: "database"; isReadOnly: boolean };
+export type DatabaseFolder = { id: string; name: string; isReadOnly: boolean; isPublic: boolean };
+export type DatabaseLink = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string; source: "database"; isReadOnly: boolean; isPublic: boolean };
 export type SavedBookmark = { id: string; title: string; description: string; thumbnail: string | null; url: string; folderId: string };
 type FolderToDelete = CustomFolder & { isCustom: boolean; isDatabase?: boolean; isReadOnly?: boolean };
 type FolderToEdit = FolderToDelete & { isDatabase?: boolean };
@@ -18,7 +18,10 @@ type FolderState = { customFolders: readonly CustomFolder[]; deletedFolderIds: r
 type FolderContextValue = FolderState & {
   databaseFolders: readonly DatabaseFolder[];
   databaseLinks: readonly DatabaseLink[];
+  isMaster: boolean;
   addDatabaseLink: (link: DatabaseLink) => void;
+  toggleFolderVisibility: (folder: DatabaseFolder) => Promise<void>;
+  toggleLinkVisibility: (link: DatabaseLink) => Promise<void>;
   openFolderModal: () => void;
   requestDeleteFolder: (folder: FolderToDelete) => void;
   requestEditFolder: (folder: FolderToEdit) => void;
@@ -76,6 +79,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
   const [databaseFolders, setDatabaseFolders] = useState(initialDatabaseFolders);
   const [databaseLinks, setDatabaseLinks] = useState(initialDatabaseLinks);
+  const [currentUserId, setCurrentUserId] = useState(initialUserId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -104,8 +108,8 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
       if (!userId) return;
 
       const [{ data: foldersData, error: foldersError }, { data: linksData, error: linksError }] = await Promise.all([
-        supabase.from("folders").select("id, nam, user_id").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
-        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id, user_id").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("folders").select("id, nam, user_id, is_public").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id, user_id, is_public").in("user_id", [userId, MASTER_USER_ID]).order("created_at", { ascending: true }).order("id", { ascending: true }),
       ]);
 
       if (version !== requestVersion || foldersError || linksError) return;
@@ -114,6 +118,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
         id: String(folder.id),
         name: folder.nam,
         isReadOnly: folder.user_id !== userId,
+        isPublic: folder.is_public,
       })));
       setDatabaseLinks((linksData ?? []).map((link) => ({
         id: String(link.id),
@@ -124,6 +129,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
         folderId: link.folder_id === null ? "" : String(link.folder_id),
         source: "database" as const,
         isReadOnly: link.user_id !== userId,
+        isPublic: link.is_public,
       })));
     }
 
@@ -132,6 +138,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
       if (nextUserId === currentUserIdRef.current) return;
 
       currentUserIdRef.current = nextUserId;
+      setCurrentUserId(nextUserId);
       const version = ++requestVersion;
       setDatabaseFolders([]);
       setDatabaseLinks([]);
@@ -186,7 +193,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
 
       if (error) throw error;
 
-      setDatabaseFolders((current) => [...current, { id: String(data.id), name: data.nam, isReadOnly: false }]);
+      setDatabaseFolders((current) => [...current, { id: String(data.id), name: data.nam, isReadOnly: false, isPublic: false }]);
       formElement.reset();
       setIsCreateOpen(false);
     } catch {
@@ -267,6 +274,40 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
 
   function addBookmark(bookmark: Omit<SavedBookmark, "id">) {
     saveState({ ...folderState, savedBookmarks: [...folderState.savedBookmarks, { ...bookmark, id: crypto.randomUUID() }] });
+  }
+
+  async function toggleFolderVisibility(folder: DatabaseFolder) {
+    if (currentUserIdRef.current !== MASTER_USER_ID || folder.isReadOnly) return;
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("folders")
+      .update({ is_public: !folder.isPublic })
+      .eq("id", folder.id)
+      .eq("user_id", MASTER_USER_ID)
+      .select("is_public")
+      .single();
+
+    if (error) return;
+    setDatabaseFolders((current) => current.map((item) => item.id === folder.id ? { ...item, isPublic: data.is_public } : item));
+  }
+
+  async function toggleLinkVisibility(link: DatabaseLink) {
+    if (currentUserIdRef.current !== MASTER_USER_ID || link.isReadOnly) return;
+    const folder = databaseFolders.find((item) => item.id === link.folderId);
+    if (!link.isPublic && !folder?.isPublic) return;
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("links")
+      .update({ is_public: !link.isPublic })
+      .eq("id", link.id)
+      .eq("user_id", MASTER_USER_ID)
+      .select("is_public")
+      .single();
+
+    if (error) return;
+    setDatabaseLinks((current) => current.map((item) => item.id === link.id ? { ...item, isPublic: data.is_public } : item));
   }
 
   async function deleteBookmark() {
@@ -378,7 +419,7 @@ export function FolderProvider({ children, initialUserId, initialDatabaseFolders
   };
 
   return (
-    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
+    <FolderContext.Provider value={{ ...folderState, databaseFolders, databaseLinks, isMaster: currentUserId === MASTER_USER_ID, addDatabaseLink: (link) => setDatabaseLinks((current) => [...current, link]), toggleFolderVisibility, toggleLinkVisibility, openFolderModal: () => { setCreateError(null); setIsCreateOpen(true); }, requestDeleteFolder: (folder) => { setDeleteError(null); setDeleteTarget(folder); }, requestEditFolder: (folder) => { setEditError(null); setEditTarget(folder); }, addBookmark, requestDeleteBookmark: (bookmark) => { setBookmarkDeleteError(null); setBookmarkDeleteTarget(bookmark); }, requestEditBookmark: (bookmark) => { setBookmarkEditError(null); setBookmarkEditTarget(bookmark); } }}>
       {children}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(55,53,47,0.32)] px-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateModal(); }}>
