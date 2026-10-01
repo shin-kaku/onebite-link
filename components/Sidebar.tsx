@@ -89,6 +89,7 @@ export function Sidebar({ active = true, activeFolderId }: { active?: boolean; a
           <LogoutIcon className="size-[18px]" />
           <span>{isSigningOut ? "로그아웃 중..." : "로그아웃"}</span>
         </button>
+        <Link className="auth-link-hover justify-self-center text-xs text-[var(--text-sub)]" href="/privacy">개인정보 처리방침</Link>
       </div>
     </aside>
   );

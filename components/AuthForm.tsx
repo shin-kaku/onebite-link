@@ -19,11 +19,12 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [errorMessage, setErrorMessage] = useState(initialError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isKakaoSubmitting, setIsKakaoSubmitting] = useState(false);
   const canSubmit = isSignup
-    ? Boolean(displayName.trim() && email.trim() && password && passwordConfirm) && !isSubmitting
+    ? Boolean(displayName.trim() && email.trim() && password && passwordConfirm && privacyAgreed) && !isSubmitting
     : Boolean(email.trim() && password) && !isSubmitting;
 
   const getAuthErrorMessage = (message: string) => {
@@ -254,6 +255,25 @@ export function AuthForm({ mode, initialError = "" }: AuthFormProps) {
                   <li>• 비밀번호는 6자 이상 입력해야 합니다.</li>
                 </ul>
               </div>
+            ) : null}
+
+            {isSignup ? (
+              <label className="flex items-start gap-2.5 text-[14px] leading-[1.5] text-[var(--text-sub)]">
+                <input
+                  className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]"
+                  type="checkbox"
+                  checked={privacyAgreed}
+                  onChange={(event) => setPrivacyAgreed(event.target.checked)}
+                  required
+                />
+                <span>
+                  [필수]{" "}
+                  <Link className="auth-link-hover font-semibold text-[var(--accent)]" href="/privacy" target="_blank">
+                    개인정보 처리방침
+                  </Link>
+                  에 동의합니다.
+                </span>
+              </label>
             ) : null}
 
             <button
