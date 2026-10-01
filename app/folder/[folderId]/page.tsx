@@ -19,10 +19,15 @@ export default async function FolderPage({ params }: PageProps<"/folder/[folderI
 
   if (!folderName) {
     const supabase = createClient(await cookies());
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) notFound();
+
     const { data: databaseFolder } = await supabase
       .from("folders")
       .select("nam")
       .eq("id", folderId)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (!databaseFolder) notFound();

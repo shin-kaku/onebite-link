@@ -71,7 +71,7 @@ function saveState(state: FolderState) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
-export function FolderProvider({ children, initialDatabaseFolders, initialDatabaseLinks }: { children: ReactNode; initialDatabaseFolders: DatabaseFolder[]; initialDatabaseLinks: DatabaseLink[] }) {
+export function FolderProvider({ children, initialUserId, initialDatabaseFolders, initialDatabaseLinks }: { children: ReactNode; initialUserId: string | null; initialDatabaseFolders: DatabaseFolder[]; initialDatabaseLinks: DatabaseLink[] }) {
   const folderState = useSyncExternalStore(subscribeToFolders, getFoldersSnapshot, () => EMPTY_STATE);
   const [databaseFolders, setDatabaseFolders] = useState(initialDatabaseFolders);
   const [databaseLinks, setDatabaseLinks] = useState(initialDatabaseLinks);
@@ -92,6 +92,57 @@ export function FolderProvider({ children, initialDatabaseFolders, initialDataba
   const [bookmarkEditError, setBookmarkEditError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isAddingFolderRef = useRef(false);
+  const currentUserIdRef = useRef(initialUserId);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let requestVersion = 0;
+    let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+
+    async function reloadDatabaseData(userId: string | null, version: number) {
+      if (!userId) return;
+
+      const [{ data: foldersData, error: foldersError }, { data: linksData, error: linksError }] = await Promise.all([
+        supabase.from("folders").select("id, nam").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
+      ]);
+
+      if (version !== requestVersion || foldersError || linksError) return;
+
+      setDatabaseFolders((foldersData ?? []).map((folder) => ({
+        id: String(folder.id),
+        name: folder.nam,
+      })));
+      setDatabaseLinks((linksData ?? []).map((link) => ({
+        id: String(link.id),
+        title: link.title ?? link.url,
+        description: link.description ?? "",
+        thumbnail: link.thumbanil_url,
+        url: link.url,
+        folderId: link.folder_id === null ? "" : String(link.folder_id),
+        source: "database" as const,
+      })));
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user.id ?? null;
+      if (nextUserId === currentUserIdRef.current) return;
+
+      currentUserIdRef.current = nextUserId;
+      const version = ++requestVersion;
+      setDatabaseFolders([]);
+      setDatabaseLinks([]);
+
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => void reloadDatabaseData(nextUserId, version), 0);
+    });
+
+    return () => {
+      requestVersion += 1;
+      if (reloadTimer) clearTimeout(reloadTimer);
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isCreateOpen && !deleteTarget && !editTarget && !bookmarkDeleteTarget && !bookmarkEditTarget) return;

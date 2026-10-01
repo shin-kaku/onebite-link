@@ -11,10 +11,14 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const supabase = createClient(await cookies());
-  const [{ data: foldersData }, { data: linksData }] = await Promise.all([
-    supabase.from("folders").select("id, nam").order("created_at", { ascending: true }).order("id", { ascending: true }),
-    supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id").order("created_at", { ascending: true }).order("id", { ascending: true }),
-  ]);
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id ?? null;
+  const [{ data: foldersData }, { data: linksData }] = userId
+    ? await Promise.all([
+        supabase.from("folders").select("id, nam").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
+        supabase.from("links").select("id, url, title, description, thumbanil_url, folder_id").eq("user_id", userId).order("created_at", { ascending: true }).order("id", { ascending: true }),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   const databaseFolders = (foldersData ?? []).map((folder) => ({
     id: String(folder.id),
@@ -32,7 +36,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang="ko" className="h-full antialiased">
-      <body className="min-h-full flex flex-col"><FolderProvider initialDatabaseFolders={databaseFolders} initialDatabaseLinks={databaseLinks}>{children}</FolderProvider></body>
+      <body className="min-h-full flex flex-col"><FolderProvider initialUserId={userId} initialDatabaseFolders={databaseFolders} initialDatabaseLinks={databaseLinks}>{children}</FolderProvider></body>
     </html>
   );
 }
